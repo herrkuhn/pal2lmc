@@ -60,6 +60,35 @@ is a download-filesystem courtesy, not a device requirement: official `.lmc`
 filenames use spaces and parentheses freely, so only characters unsafe for
 common filesystems are replaced with `_`.
 
+`ConversionService` also exposes two preview-only passthroughs so it stays
+the sole core-crossing point for HDR preview math: `normalizedSdr(entries,
+whiteLevel)` (delegates to `toNormalizedSdr`) and `hdrPreviewColors(entries,
+whiteLevel)` (composes `toRelativeLinear` with `linearToSrgb` per channel,
+returning extended-sRGB-encoded floats up to about 1.56). Both take the
+`whiteLevel` from `PaletteFileResult.nesHdr`, an optional field set only in
+the NES branch of `readPaletteFile` when `detectNesHdrHeadroom` (core)
+returns non-null; the `hdrHeadroom` notice is present iff `nesHdr` is
+present.
+
+`HdrDisplayService` (`hdr-display.service.ts`), root-provided and injected
+only by `ConverterPageComponent`: `displayIsHdr` wraps
+`matchMedia('(dynamic-range: high)')` with a change listener; `gpu` is
+`'unprobed' | 'probing' | GPUDevice | 'unavailable'`, moved off
+`'unprobed'` only by `probe()` (called from `onFile` once a loaded file's
+`nesHdr` is set). `probe()` is idempotent and guards every WebGPU API
+access so jsdom specs need no stubbing -- a missing `navigator.gpu` or
+`matchMedia` resolves to the SDR/unavailable defaults. `device.lost` flips
+`gpu` back to `'unavailable'`.
+
+`hdr-grid-renderer.ts` (`HdrGridRenderer`), constructed and owned by
+`PaletteGridComponent`: an imperative class with no Angular or core
+imports, taking a canvas, a `GPUDevice`, and an `onFailure` callback. It
+uploads `hdrPreviewColors` output as a storage buffer and draws one
+fullscreen triangle mapping the 16x4 cell layout; any WebGPU throw tears
+the renderer down and calls `onFailure` exactly once. `computeCellRects`
+is exported separately as a pure function, so cell/gap geometry is
+jsdom-testable without a real GPU.
+
 ## Components
 
 - `converter-page.component.ts` -- container. `onFile()` awaits
@@ -71,9 +100,9 @@ common filesystems are replaced with `_`.
   where `message` names every accepted input (192, 768, or 1536 bytes, or
   a `.vpl` file) and the actual size. Renders one `<p class="notice">` per
   entry in `notices()`, text keyed by a `NOTICE_TEXT` lookup covering
-  `emphasisIgnored`, `ditherIgnored`, `duplicatePairsBroken`, and
-  `tagAbsent` -- one mechanism for every parser rather than each format
-  inventing its own UI. `onDownload()` calls `conversionService.download`
+  `emphasisIgnored`, `ditherIgnored`, `duplicatePairsBroken`, `tagAbsent`,
+  and `hdrHeadroom` -- one mechanism for every parser rather than each
+  format inventing its own UI. `onDownload()` calls `conversionService.download`
   with the current `lmcText()` and palette name. The template renders
   `PaletteGridComponent`, `OptionsFormComponent`, and
   `OutputPreviewComponent` only while `paletteData()` is non-null; the
@@ -82,7 +111,23 @@ common filesystems are replaced with `_`.
   equivalent hint). `parseError` and `notices` render outside this gate,
   so a failed parse -- including one after a prior success, since `onFile`
   resets `palette` to `null` on failure -- shows the error together with
-  the init screen.
+  the init screen. When `result.nesHdr` is present, `onFile` also sets a
+  `nesHdr` signal and calls `hdrDisplayService.probe()`; the `hdrHeadroom`
+  entry in `NOTICE_TEXT` is phrased as a guess with an explicit escape
+  hatch -- "This looks like an RT4K HDR-headroom palette (reference white
+  below peak). The preview below simulates its HDR appearance where your
+  browser and display allow it; the converted .lmc is unaffected. Switch
+  the preview to 'File bytes' if this guess is wrong." -- rather than
+  naming a specific HDR variant: the heuristic can false-positive on a
+  deliberately dim custom palette, so generic wording that stays correct
+  regardless of which, or whether any, known variant produced the file is
+  preferable to hash-matching against known variant byte patterns. A
+  `previewMode` signal (`null` means auto) and a computed `effectiveMode`
+  implement the HDR/SDR-normalized/raw mode matrix (see HDR Preview
+  below); both `nesHdr` and `previewMode` reset on every new file load,
+  mirroring the `notices` reset. `onHdrRenderFailed()` downgrades
+  `previewMode` to `'sdr-normalized'` for the current file only -- the
+  next file load resets it to auto again.
 - `file-drop.component.ts` -- hidden `<input type=file accept=".pal,.vpl">`
   plus a drag/drop zone; emits `fileSelected = output<File>()`. Never
   inspects the file extension itself -- `readPaletteFile`'s detection
@@ -122,9 +167,48 @@ common filesystems are replaced with `_`.
   check for byte-order bugs against the source file or emulator palette
   viewer: `nes` is 4x16 with `$xx` PPU-order labels; `c64`/`vic20` is one
   row of 16 with Commodore color numbers and names; `a7800`/`a2600` is
-  16x16 with `$xx` MARIA-byte labels, one hue per row.
+  16x16 with `$xx` MARIA-byte labels, one hue per row. In HDR-headroom
+  mode it also accepts `mode`, `availableModes`, `clipped`, `hdrColors`,
+  and `device` inputs and emits `modeChange`/`hdrRenderFailed` outputs --
+  still `input()`/`output()` only, no injection; `GPUDevice` reaches it as
+  a plain input, never via `inject()`, so the presentational boundary
+  holds even for the WebGPU path. A segmented toggle above the grid
+  renders only when `availableModes().length >= 2`; with no detection the
+  component renders byte-for-byte today's template (no toggle, no
+  canvas). See HDR Preview below for the mode semantics.
 - `output-preview.component.ts` -- monospace `<pre>` preview of `lmcText()`;
   download button disabled while `lmcText()` is `null`.
+
+## HDR Preview
+
+Detection (`nes-hdr.ts`, core layer) only ever changes what the preview
+*shows*; `entries`, `lmcText`, and the download are unaffected. `hdr` mode
+reproduces the palette's brightness relative to its own reference white,
+up to whatever headroom the display and browser offer -- browser extended
+range is always relative to the display's own SDR white point, never an
+absolute nit value, so this is not a colorimetric match to RT4K hardware
+output. Three modes, picked by `effectiveMode` in
+`converter-page.component.ts`:
+
+| Detection | GPUDevice + `displayIsHdr()` | `effectiveMode` (auto) | `availableModes`               |
+| --------- | ---------------------------- | ----------------------- | ------------------------------- |
+| none      | --                            | `raw`                    | `[]` (no toggle)                 |
+| yes       | no                            | `sdr-normalized`         | `[sdr-normalized, raw]`          |
+| yes       | yes                           | `hdr`                    | `[hdr, sdr-normalized, raw]`     |
+
+`previewMode` is `null` (auto) unless the user picks a mode via the
+toggle; an explicit choice survives a `displayIsHdr` change (e.g. a
+monitor swap) but resets to `null` on a new file load -- the same
+reset-on-new-file lifecycle as `OptionsFormComponent`'s `userComment`. The
+`hdr` option is hidden, not shown-disabled, when unavailable: extended
+range rendered on an SDR display clamps to output visually identical to
+`sdr-normalized`, so a visible-but-inert entry would only mislead.
+
+Everything up to "encoded colors + cell geometry" is pure and covered by
+jsdom specs with zero WebGPU/`matchMedia` stubbing (`hdrPreviewColors`,
+`normalizedSdr`, `computeCellRects`); the actual `HdrGridRenderer` draw
+calls are WebGPU-only and, like the rest of this layer's real rendering,
+verified by manual/recorded smoke rather than the automated suite.
 
 ## Design Decisions
 
@@ -135,7 +219,40 @@ common filesystems are replaced with `_`.
   source of truth.
 - **Presentational children own no state and never import the core.** The
   container is the only file with `inject(ConversionService)`, keeping the
-  Angular-to-core boundary at exactly one crossing point.
+  Angular-to-core boundary at exactly one crossing point. `HdrDisplayService`
+  extends this rule rather than breaking it: it is also injected only by
+  the container, never by `PaletteGridComponent`, which receives `GPUDevice`
+  and encoded colors as plain inputs.
+- **HDR preview colors are encoded on the CPU in `ConversionService`, not
+  in the WGSL shader.** Duplicating the sRGB transfer function in a second
+  language would put it beyond unit-test reach; encoding in the service
+  passthrough means everything up to "encoded colors + cell geometry" is
+  pure and jsdom-testable, and `HdrGridRenderer` touches only WebGPU APIs
+  -- pinning the untestable seam as narrowly as possible.
+- **GPU capability is probed lazily, on first HDR-headroom load, not at
+  app start.** Adapter/device acquisition costs work that most users --
+  anyone who never loads a headroom palette -- would never benefit from.
+- **No browser-version gating for the Chrome < 129 `toneMapping` gap in
+  `HdrDisplayService.probe()`.** There is no direct feature-detection API
+  for extended tone-mapping support, and sniffing the user agent to
+  approximate one would be brittle; the failure mode is harmless anyway --
+  an engine that lacks the feature silently clamps HDR output to
+  something visually identical to `sdr-normalized`.
+- **The swatch grid stays a CSS grid; the WebGPU canvas is a color-only
+  underlay behind it.** `PaletteGridComponent`'s existing DOM grid keeps
+  layout, labels, and hue/index text; the canvas draws only the 64
+  background colors atop the same `computeCellRects` geometry, so raw
+  mode (no canvas) renders the identical DOM byte-for-byte to today's
+  template and switching modes never touches layout or labels, only the
+  color source.
+- **Detection wiring (`conversion.service.ts`), preview-mode state
+  (`converter-page.component.ts`), and the WebGPU underlay
+  (`palette-grid.component.ts`) land as one unit of work, not three.**
+  All three touch the same disjoint set of files and nothing outside it,
+  so grouping them keeps each unit of work's file ownership from
+  overlapping any other; the notice-text, then SDR-normalized fallback,
+  then underlay ordering inside that unit still ships each capability
+  behind a green test suite before the next lands.
 - **`OptionsFormComponent` distinguishes `comment: undefined` from
   `comment: ''`.** Undefined means "generate the default S3.3 comment
   block"; a string means the user edited or cleared it.
@@ -194,3 +311,10 @@ common filesystems are replaced with `_`.
   in `onFile`), regardless of any norm the user previously selected for a
   prior file -- PAL is the more common source for VICE `.vpl` exports, and
   the norm toggle remains available to switch immediately after load.
+- `nesHdr` and the `hdrHeadroom` notice are set together or never (asserted
+  both ways in `conversion.service.spec.ts`); the `.vpl` and 768-byte
+  branches never set either -- only the NES branch of `readPaletteFile`
+  runs `detectNesHdrHeadroom`.
+- A 1536-byte file's HDR detection runs on block 0 (the base palette),
+  the same block used for conversion; the discarded emphasis blocks play
+  no part in detection, matching the existing `emphasisIgnored` behavior.

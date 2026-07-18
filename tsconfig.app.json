@@ -4,7 +4,13 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/app",
-    "types": []
+    // GPUDevice and related WebGPU types resolve for
+    // hdr-display.service.ts and hdr-grid-renderer.ts without
+    // importing core modules. Declared here and in tsconfig.spec.json
+    // separately: app and spec compile disjoint file sets (this config
+    // excludes *.spec.ts below), so each needs its own ambient-types
+    // entry.
+    "types": ["@webgpu/types"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.spec.ts"],

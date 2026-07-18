@@ -8,6 +8,13 @@ import { commodoreToLumacodeOrder } from '../../core/palette/commodore-mapper';
 import { atariToLumacodeOrder } from '../../core/palette/atari-mapper';
 import { serializeLmc } from '../../core/palette/lmc-serializer';
 import { SystemId } from '../../core/palette/system';
+import {
+  detectNesHdrHeadroom,
+  linearToSrgb,
+  NesHdrDetection,
+  toNormalizedSdr,
+  toRelativeLinear,
+} from '../../core/palette/nes-hdr';
 
 const SANITIZE_PATTERN = /[^A-Za-z0-9 ()_-]/g;
 
@@ -26,7 +33,12 @@ const INVALID_SIZE_MESSAGE = (actualSize: number): string =>
 
 // Non-blocking notices (shares one mechanism with the NES emphasisIgnored
 // pattern), rendered by the UI alongside emphasisIgnored.
-export type ParserNotice = 'emphasisIgnored' | 'ditherIgnored' | 'duplicatePairsBroken' | 'tagAbsent';
+export type ParserNotice =
+  | 'emphasisIgnored'
+  | 'ditherIgnored'
+  | 'duplicatePairsBroken'
+  | 'tagAbsent'
+  | 'hdrHeadroom';
 
 // File-detection result union spans formats and encodes UI workflow
 // (pre-selection, override choices, notices) -- it lives beside
@@ -40,6 +52,12 @@ export type PaletteFileResult =
       selectableSystems: SystemId[];
       paletteName?: string;
       notices: ParserNotice[];
+      // Set iff the NES branch's detectNesHdrHeadroom fires; the
+      // 'hdrHeadroom' notice above is present iff this field is set
+      // (HDR plan DL-007). Placed here, beside readPaletteFile, rather
+      // than in models.ts, following the same file-detection-result-union
+      // precedent as the notices field above.
+      nesHdr?: NesHdrDetection;
     }
   | { ok: false; message: string };
 
@@ -115,12 +133,19 @@ export class ConversionService {
       // so a second NES notice flag would cost no shape change (DL-005).
       const notices: ParserNotice[] = [];
       if (result.emphasisIgnored) notices.push('emphasisIgnored');
+      // Runs on the base palette (block 0) for both 192- and 1536-byte
+      // inputs, matching convert()'s own block-0-only behavior; the
+      // notice mirrors the nesHdr field so the two can never disagree
+      // (DL-007).
+      const nesHdr = detectNesHdrHeadroom(result.entries) ?? undefined;
+      if (nesHdr) notices.push('hdrHeadroom');
       return {
         ok: true,
         entries: result.entries,
         system: 'nes',
         selectableSystems: ['nes'],
         notices,
+        nesHdr,
       };
     }
 
@@ -168,6 +193,35 @@ export class ConversionService {
       case 'a2600':
         return serializeLmc(atariToLumacodeOrder(entries), options);
     }
+  }
+
+  /**
+   * SDR-normalized preview fallback: white maps to 255 and anything
+   * brighter clips at 1.0 linear. A thin passthrough to core's
+   * toNormalizedSdr so this service stays the sole crossing point.
+   *
+   * @param entries - Source-order NES entries.
+   * @param whiteLevel - nesHdr.whiteLevel from readPaletteFile.
+   */
+  normalizedSdr(entries: Rgb[], whiteLevel: number): { entries: Rgb[]; clipped: boolean[] } {
+    return toNormalizedSdr(entries, whiteLevel);
+  }
+
+  /**
+   * Ready-to-upload WebGPU preview colors: composes toRelativeLinear with
+   * linearToSrgb per channel, so the renderer receives extended-sRGB-
+   * encoded floats (values up to about 1.56) and imports no core
+   * functions itself (DL-005).
+   *
+   * @param entries - Source-order NES entries.
+   * @param whiteLevel - nesHdr.whiteLevel from readPaletteFile.
+   */
+  hdrPreviewColors(entries: Rgb[], whiteLevel: number): Rgb[] {
+    return toRelativeLinear(entries, whiteLevel).map((linear) => ({
+      r: linearToSrgb(linear.r),
+      g: linearToSrgb(linear.g),
+      b: linearToSrgb(linear.b),
+    }));
   }
 
   download(text: string, baseName: string): void {

@@ -9,7 +9,20 @@ import { toLumacodeOrder } from '../../core/palette/lumacode-mapper';
 import { commodoreToLumacodeOrder } from '../../core/palette/commodore-mapper';
 import { atariToLumacodeOrder } from '../../core/palette/atari-mapper';
 import { serializeLmc } from '../../core/palette/lmc-serializer';
-import { decodePalBase64, NES_CLASSIC_FBX_PAL_B64 } from '../../core/palette/fixtures/pal-fixtures';
+import {
+  decodePalBase64,
+  NES_CLASSIC_FBX_PAL_B64,
+  COMPOSITE_DIRECT_FBX_PAL_B64,
+  PC10_PAL_B64,
+  PVM_STYLE_D93_FBX_PAL_B64,
+  SMOOTH_FBX_PAL_B64,
+  SONY_CXA_PAL_B64,
+  WAVEBEAM_PAL_B64,
+  NES_HDR_RAW_PAL_B64,
+  NES_HDR_SOFT_CLAMP_PAL_B64,
+  NES_HDR_MEDIUM_CLAMP_PAL_B64,
+  NES_HDR_SONY_DECODER_PAL_B64,
+} from '../../core/palette/fixtures/pal-fixtures';
 import { CJAM_VPL, VICE_VPL } from '../../core/palette/fixtures/vpl-fixtures';
 import { defaultOptionsFor } from '../../core/palette/system';
 
@@ -131,6 +144,75 @@ describe('ConversionService', () => {
 
   // Pins DL-002: file.text()/file.arrayBuffer() rejections surface
   // as ok:false with a non-empty message.
+  describe('NES HDR headroom detection', () => {
+    it.each([
+      [NES_HDR_RAW_PAL_B64, 162],
+      [NES_HDR_SOFT_CLAMP_PAL_B64, 180],
+      [NES_HDR_MEDIUM_CLAMP_PAL_B64, 196],
+      [NES_HDR_SONY_DECODER_PAL_B64, 189],
+    ])(
+      'detects an HDR headroom fixture with nesHdr set and the hdrHeadroom notice',
+      async (b64, whiteLevel) => {
+        const bytes = decodePalBase64(b64);
+        const file = new File([new Uint8Array(bytes)], 'hdr.pal');
+        const result = await service.readPaletteFile(file);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.nesHdr).toEqual({ whiteLevel });
+        expect(result.notices).toContain('hdrHeadroom');
+      },
+    );
+
+    it.each([
+      COMPOSITE_DIRECT_FBX_PAL_B64,
+      NES_CLASSIC_FBX_PAL_B64,
+      PC10_PAL_B64,
+      PVM_STYLE_D93_FBX_PAL_B64,
+      SMOOTH_FBX_PAL_B64,
+      SONY_CXA_PAL_B64,
+      WAVEBEAM_PAL_B64,
+    ])('leaves nesHdr and the notice unset for an FBX-era fixture', async (b64) => {
+      const bytes = decodePalBase64(b64);
+      const file = new File([new Uint8Array(bytes)], 'fbx.pal');
+      const result = await service.readPaletteFile(file);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.nesHdr).toBeUndefined();
+      expect(result.notices).not.toContain('hdrHeadroom');
+    });
+
+    it('detects on block 0 of a 1536-byte emphasis file padded from an HDR fixture', async () => {
+      const block0 = decodePalBase64(NES_HDR_RAW_PAL_B64);
+      const bytes = new Uint8Array(1536);
+      bytes.set(block0, 0);
+      const file = new File([bytes], 'hdr-emphasis.pal');
+      const result = await service.readPaletteFile(file);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.nesHdr).toEqual({ whiteLevel: 162 });
+      expect(result.notices).toContain('hdrHeadroom');
+      expect(result.notices).toContain('emphasisIgnored');
+    });
+
+    it('never sets nesHdr or the notice for a .vpl file', async () => {
+      const file = new File([CJAM_VPL], 'cjam.vpl');
+      const result = await service.readPaletteFile(file);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.nesHdr).toBeUndefined();
+      expect(result.notices).not.toContain('hdrHeadroom');
+    });
+
+    it('never sets nesHdr or the notice for a 768-byte Atari file', async () => {
+      const file = new File([buildAtariBytes(false)], 'atari.pal');
+      const result = await service.readPaletteFile(file);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.nesHdr).toBeUndefined();
+      expect(result.notices).not.toContain('hdrHeadroom');
+    });
+  });
+
   describe('read failures', () => {
     it('routes a text() rejection into ok:false with a non-empty message', async () => {
       const file = new File([CJAM_VPL], 'rejects.vpl');
@@ -191,6 +273,30 @@ describe('ConversionService', () => {
       const options = { ...defaultOptionsFor(system, 'pal'), paletteName: 'x' };
       const expected = serializeLmc(atariToLumacodeOrder(entries), options);
       expect(service.convert(entries, options)).toBe(expected);
+    });
+  });
+
+  describe('hdrPreviewColors / normalizedSdr passthroughs', () => {
+    it('puts HDR Raw $22 blue at about 1.56 encoded', async () => {
+      const bytes = decodePalBase64(NES_HDR_RAW_PAL_B64);
+      const file = new File([new Uint8Array(bytes)], 'hdr.pal');
+      const result = await service.readPaletteFile(file);
+      expect(result.ok).toBe(true);
+      if (!result.ok || !result.nesHdr) return;
+
+      const colors = service.hdrPreviewColors(result.entries, result.nesHdr.whiteLevel);
+      expect(colors[0x22].b).toBeCloseTo(1.5574, 3);
+    });
+
+    it('maps white to 255 via normalizedSdr', async () => {
+      const bytes = decodePalBase64(NES_HDR_RAW_PAL_B64);
+      const file = new File([new Uint8Array(bytes)], 'hdr.pal');
+      const result = await service.readPaletteFile(file);
+      expect(result.ok).toBe(true);
+      if (!result.ok || !result.nesHdr) return;
+
+      const normalized = service.normalizedSdr(result.entries, result.nesHdr.whiteLevel);
+      expect(normalized.entries[0x20]).toEqual({ r: 255, g: 255, b: 255 });
     });
   });
 

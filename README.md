@@ -19,6 +19,18 @@ dump parses on the RT4K but renders wrong colors. Generated files
 replicate the official preset format byte-for-byte, verified by a golden
 test suite against official `.lmc` presets.
 
+Some NES palettes are authored for the RT4K's HDR headroom feature: the
+file's colors look uniformly dim in an ordinary viewer because reference
+white is scaled below peak brightness on purpose. The app recognizes
+these palettes automatically, shows a notice explaining the guess, and
+previews them at their intended relative brightness -- in HDR on a
+supporting browser and display, normalized against SDR white otherwise,
+or as plain file bytes if you'd rather see exactly what's on disk. The HDR
+preview tracks your display's own brightness headroom, not an absolute
+brightness value, so it will not look identical to the RT4K's own output
+on every screen. The conversion output is identical either way; the
+preview mode only changes what you see before downloading.
+
 ## Installation
 
 Requires [Node.js](https://nodejs.org/) 20.19+ (Node 24 recommended) and
@@ -52,7 +64,9 @@ Open `http://localhost:4200/`, then:
    presets; `strict` keeps the source byte). Sample rate and decimation
    are derived per system and rarely need touching.
 3. **Preview and download** the generated `.lmc`, then copy it to the
-   RT4K SD card's palette directory.
+   RT4K SD card's palette directory. If the app recognizes an HDR-headroom
+   NES palette, a toggle above the preview lets you switch between HDR,
+   normalized-SDR, and file-bytes views.
 
 To produce an optimized static build (deployable to any static host):
 
@@ -78,12 +92,15 @@ The project has a hard boundary between conversion logic and UI:
 src/app/
   core/palette/          Framework-free conversion core (plain TypeScript,
                          no Angular imports, no DOM): one parser and one
-                         mapper per system, a shared .lmc serializer, and
-                         the golden-test fixtures.
+                         mapper per system, a shared .lmc serializer, NES
+                         HDR-headroom detection and preview math, and the
+                         golden-test fixtures.
   features/converter/    Angular UI layer: ConversionService (the only
                          caller of the core) plus container and
-                         presentational components. UI state is three
-                         signals; output is fully derived via computed().
+                         presentational components, an HDR display-
+                         capability service, and a WebGPU preview
+                         renderer. UI state lives in signals; output is
+                         fully derived via computed().
 ```
 
 Correctness is anchored to reference data rather than a format spec:

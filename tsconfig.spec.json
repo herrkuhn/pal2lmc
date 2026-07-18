@@ -4,7 +4,11 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
-    "types": ["vitest/globals"]
+    // Matches tsconfig.app.json: hdr-grid-renderer.spec.ts references
+    // GPUDevice-typed stubs. Repeated rather than shared with
+    // tsconfig.app.json because this config compiles the disjoint
+    // *.spec.ts file set.
+    "types": ["vitest/globals", "@webgpu/types"]
   },
   "include": ["src/**/*.d.ts", "src/**/*.spec.ts"]
 }

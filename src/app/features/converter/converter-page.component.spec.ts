@@ -1,10 +1,16 @@
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { signal } from '@angular/core';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { ConverterPageComponent } from './converter-page.component';
 import { ConversionService } from './conversion.service';
+import { HdrDisplayService } from './hdr-display.service';
 import { OptionsFormComponent } from './options-form.component';
-import { decodePalBase64, NES_CLASSIC_FBX_PAL_B64 } from '../../core/palette/fixtures/pal-fixtures';
+import {
+  decodePalBase64,
+  NES_CLASSIC_FBX_PAL_B64,
+  NES_HDR_RAW_PAL_B64,
+} from '../../core/palette/fixtures/pal-fixtures';
 import { CJAM_VPL } from '../../core/palette/fixtures/vpl-fixtures';
 import { LmcOptions } from '../../core/palette/models';
 
@@ -268,5 +274,169 @@ describe('ConverterPageComponent', () => {
       .componentInstance as any;
     expect(optionsForm.form.controls.sampleRate.value).toBe(4092);
     expect(component.options().sampleRate).toBe(4092);
+  });
+  describe('HDR preview mode', () => {
+    // A minimal-but-non-throwing WebGPU device: real jsdom has no
+    // canvas 'webgpu' context, so any test that lets PaletteGridComponent's
+    // effect actually construct and configure() an HdrGridRenderer needs
+    // this stub (plus the getContext spy below) to reach a clean
+    // configure()/render() rather than tripping HdrGridRenderer's
+    // failure path before the assertions run.
+    function buildFakeGpuDevice(): GPUDevice {
+      const pass = { setPipeline: () => {}, setBindGroup: () => {}, draw: () => {}, end: () => {} };
+      const encoder = { beginRenderPass: () => pass, finish: () => ({}) };
+      return {
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        createShaderModule: () => ({}),
+        createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
+        createBuffer: () => ({ destroy: () => {} }),
+        createBindGroup: () => ({}),
+        createCommandEncoder: () => encoder,
+        queue: { writeBuffer: () => {}, submit: () => {} },
+      } as unknown as GPUDevice;
+    }
+
+    // jsdom implements neither a 'webgpu' canvas context, ResizeObserver,
+    // nor the GPUBufferUsage global; HdrGridRenderer.configure() needs
+    // all three to reach a clean configure()/render() instead of
+    // tripping its failure path before a test's assertions run.
+    function stubCanvasWebgpuContext() {
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+        configure: () => {},
+        unconfigure: () => {},
+        getCurrentTexture: () => ({ createView: () => ({}) }),
+      } as unknown as GPUCanvasContext);
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          observe(): void {}
+          unobserve(): void {}
+          disconnect(): void {}
+        },
+      );
+      vi.stubGlobal('GPUBufferUsage', {
+        MAP_READ: 0x0001,
+        MAP_WRITE: 0x0002,
+        COPY_SRC: 0x0004,
+        COPY_DST: 0x0008,
+        INDEX: 0x0010,
+        VERTEX: 0x0020,
+        UNIFORM: 0x0040,
+        STORAGE: 0x0080,
+        INDIRECT: 0x0100,
+        QUERY_RESOLVE: 0x0200,
+      });
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+
+    function buildHdrCapableStub() {
+      const gpuSignal = signal<GPUDevice | 'unavailable'>(buildFakeGpuDevice());
+      const displaySignal = signal(true);
+      return {
+        stub: { displayIsHdr: displaySignal, gpu: gpuSignal, probe: async () => {} },
+        displaySignal,
+      };
+    }
+
+    it('shows the hdrHeadroom banner and a two-mode toggle with clip markers in default jsdom (no GPUDevice, no HDR display)', async () => {
+      const fixture = TestBed.createComponent(ConverterPageComponent);
+      const component = fixture.componentInstance as any;
+
+      const bytes = decodePalBase64(NES_HDR_RAW_PAL_B64);
+      await component.onFile(new File([new Uint8Array(bytes)], 'hdr.pal'));
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.notice')?.textContent).toContain('RT4K HDR-headroom palette');
+
+      const options = compiled.querySelectorAll('.mode-option');
+      expect(Array.from(options).map((o) => o.textContent?.trim())).toEqual([
+        'SDR normalized',
+        'File bytes',
+      ]);
+      expect(component.effectiveMode()).toBe('sdr-normalized');
+      expect(compiled.querySelectorAll('.clip-marker').length).toBeGreaterThan(0);
+    });
+
+    it('renders no toggle and no canvas for an FBX-era fixture (regression guard: unchanged from pre-feature)', async () => {
+      const fixture = TestBed.createComponent(ConverterPageComponent);
+      const component = fixture.componentInstance as any;
+
+      const bytes = decodePalBase64(NES_CLASSIC_FBX_PAL_B64);
+      await component.onFile(new File([new Uint8Array(bytes)], 'NES Classic (FBX).pal'));
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.mode-toggle')).toBeNull();
+      expect(compiled.querySelector('canvas')).toBeNull();
+      expect(compiled.querySelectorAll('.swatch').length).toBe(64);
+    });
+
+    it('renders all three modes and a canvas when HdrDisplayService reports a device and an HDR display, and downgrades to sdr-normalized on hdrRenderFailed', async () => {
+      stubCanvasWebgpuContext();
+      const { stub } = buildHdrCapableStub();
+      TestBed.overrideProvider(HdrDisplayService, { useValue: stub });
+
+      const fixture = TestBed.createComponent(ConverterPageComponent);
+      const component = fixture.componentInstance as any;
+
+      const bytes = decodePalBase64(NES_HDR_RAW_PAL_B64);
+      await component.onFile(new File([new Uint8Array(bytes)], 'hdr.pal'));
+      fixture.detectChanges();
+
+      expect(component.effectiveMode()).toBe('hdr');
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelectorAll('.mode-option').length).toBe(3);
+      expect(compiled.querySelector('canvas')).not.toBeNull();
+
+      component.onHdrRenderFailed();
+      fixture.detectChanges();
+      expect(component.effectiveMode()).toBe('sdr-normalized');
+    });
+
+    it('keeps an explicit mode choice across a monitor change but resets to auto on a new file load', async () => {
+      stubCanvasWebgpuContext();
+      const { stub, displaySignal } = buildHdrCapableStub();
+      TestBed.overrideProvider(HdrDisplayService, { useValue: stub });
+
+      const fixture = TestBed.createComponent(ConverterPageComponent);
+      const component = fixture.componentInstance as any;
+
+      const bytes = decodePalBase64(NES_HDR_RAW_PAL_B64);
+      await component.onFile(new File([new Uint8Array(bytes)], 'hdr.pal'));
+      fixture.detectChanges();
+
+      component.previewMode.set('sdr-normalized');
+      fixture.detectChanges();
+      expect(component.effectiveMode()).toBe('sdr-normalized');
+
+      displaySignal.set(false);
+      fixture.detectChanges();
+      expect(component.effectiveMode()).toBe('sdr-normalized');
+
+      await component.onFile(new File([new Uint8Array(bytes)], 'hdr.pal'));
+      fixture.detectChanges();
+      displaySignal.set(true);
+      fixture.detectChanges();
+      expect(component.effectiveMode()).toBe('hdr');
+    });
+
+    it('renders no toggle for .vpl and Atari loads', async () => {
+      const fixture = TestBed.createComponent(ConverterPageComponent);
+      const component = fixture.componentInstance as any;
+
+      await component.onFile(new File([CJAM_VPL], 'cjam.vpl'));
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).querySelector('.mode-toggle')).toBeNull();
+
+      await component.onFile(new File([new Uint8Array(buildAtariBytes(false))], 'atari.pal'));
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).querySelector('.mode-toggle')).toBeNull();
+    });
   });
 });

@@ -33,7 +33,23 @@ commodoreToLumacodeOrder(entries) -> Rgb[]        # commodore-mapper.ts, C64/VIC
 atariToLumacodeOrder(entries) -> Rgb[]            # atari-mapper.ts, 7800/2600
 
 serializeLmc(entries, opts) -> string             # lmc-serializer.ts, all systems
+
+detectNesHdrHeadroom(palette) -> NesHdrDetection | null       # nes-hdr.ts, NES only
+toRelativeLinear(palette, whiteLevel) -> LinearRgb[]          # nes-hdr.ts, HDR preview math
+toNormalizedSdr(palette, whiteLevel) -> { entries; clipped }  # nes-hdr.ts, SDR-normalized preview
+srgbToLinear(encoded) / linearToSrgb(linear)                  # nes-hdr.ts, shared sRGB transfer pair
 ```
+
+`nes-hdr.ts` detects NES HDR-headroom palettes -- plain 8-bit sRGB `.pal`
+files with no marker or metadata, scaled so the hottest color sits at
+`1.0` and reference white sits below it -- and derives the preview math
+that reconstructs their intended relative brightness. `ConversionService`
+in `src/app/features/converter/` is the sole caller; detection and preview
+colors never reach `convert()`, `toLumacodeOrder`, or `serializeLmc`.
+The reconstruction is relative to the palette's own reference white and
+the display's own SDR white point, not an absolute nit value -- correct
+relative brightness up to whatever headroom the browser and display
+offer, not a colorimetric match to RT4K hardware output.
 
 `system.ts` holds the `SYSTEMS` table, the single source of per-system facts:
 header defaults per TV norm, hex case, entry count, preset comment wording,
@@ -62,6 +78,28 @@ they are the correctness gate.
 - **No strategy pattern or mapper registry** for other systems.
   A second exported function beside `toLumacodeOrder`, with the same shape,
   is the intended extension point if another system is ever added.
+- **NES HDR-headroom detection is heuristic, not authoritative, and NES-only.**
+  `detectNesHdrHeadroom` classifies by a white/peak ratio
+  (`HEADROOM_RATIO_MAX = 0.85`) behind a `SATURATION_FLOOR = 240` guard on
+  the peak channel -- every vendored preset, HDR and FBX-era alike, peaks
+  at exactly 255, so 240 is 255 minus about 6% slack for rounded or
+  rescaled exports; the floor also rejects flat/dim palettes outright and
+  keeps the ratio's division from a zero peak. Reference white is the max
+  of indices `$20` AND `$30`, not either alone, so a palette with only one
+  tinted reference-white entry can't skew the ratio; a white reading of 0
+  is rejected as a garbage reference point, not headroom. The vendored
+  corpus splits at ratios 0.635-0.769 for the four HDR variants (HDR Raw,
+  Soft Clamp, Medium Clamp, Sony Decoder) versus exactly 1.0 for every
+  FBX-era preset, so 0.85 clears the highest HDR ratio (0.769) by 0.081
+  while sitting 0.15 below the FBX-era floor. Detection is NES-only
+  because only the NES defines reference-white indices (`$20`/`$30`) to
+  anchor the ratio; a future non-NES headroom convention is a sibling pure
+  function beside `detectNesHdrHeadroom`, the same no-strategy-pattern
+  extension point as `toLumacodeOrder`.
+- **A deliberately dim custom palette can false-positive the HDR
+  heuristic.** Detection therefore only ever drives a notice and a preview
+  toggle in `features/converter/`, never `convert()`'s output; the raw
+  (file-bytes) preview mode always remains available as the escape hatch.
 - **One shared Commodore permutation.**
   `COMMODORE_TO_LUMACODE = [0,6,2,4,9,11,12,3,8,14,15,7,5,10,13,1]` serves
   both C64 and VIC-20 -- verified byte-identical 16/16 against both golden
@@ -155,6 +193,22 @@ from a sourced timing figure.
 - The four NES HDR pairs' source `.pal` files have no standalone file
   counterpart; they exist only inside `pal-fixtures.ts` (canonical
   download: `rt4k_nes_hdr_v2.zip`, see `GOLDEN_PAIRS`).
+- Their `whiteLevel` (max channel of index `$20`/`$30`) is 162 (HDR Raw),
+  180 (Soft Clamp), 196 (Medium Clamp), and 189 (Sony Decoder) against a
+  peak of 255 -- ratios 0.635, 0.706, 0.769, 0.741, all at or below
+  `HEADROOM_RATIO_MAX`. `toRelativeLinear`/`toNormalizedSdr` treat
+  `whiteLevel` as the point that reconstructs to `1.0` linear (SDR white),
+  so HDR Raw's `$22` blue (source byte 255) reconstructs to about 2.77
+  linear -- values above 1.0 are the "headroom" the preview renders.
+- `srgbToLinear`/`linearToSrgb` extend the standard sRGB piecewise curve
+  beyond 1.0 by continuing the power segment rather than clamping, so
+  values above 1.0 linear round-trip within `1e-6`;
+  `ConversionService.hdrPreviewColors` reuses this same pair rather than
+  duplicating the transfer function in the WebGPU shader.
+- HDR-headroom palettes still get the NES `$0D` = `000000` -> `303030`
+  visible-fix treatment described above: that fix operates on raw palette
+  bytes ahead of HDR reconstruction, so the two are independent steps
+  applied in sequence, not competing treatments of the same byte.
 - The 7800 fixture is extracted from MAME `a7800p_colors` by script, not
   hand-typed; the golden spec asserts two structural properties of the
   official table as a transcription guard: hue-0 greys step by exactly
@@ -164,6 +218,9 @@ from a sourced timing figure.
   selectable systems, notices) lives beside `readPaletteFile` in
   `ConversionService`, not in `models.ts`: core types stay per-format and
   framework-free, while detection spans formats and encodes UI workflow.
+  `PaletteFileResult.nesHdr` follows this same precedent -- it sits beside
+  `readPaletteFile`, not in `models.ts`, even though `detectNesHdrHeadroom`
+  itself is core, framework-free, palette-content domain knowledge.
 - All three parsers share one error shape, `{ ok: false; reason; message:
   string }`, with `message` built in-parser; `ParseResult`'s success field
   is named `entries` (type stays `NesPalette`), matching `VplParseResult`
