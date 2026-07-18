@@ -48,7 +48,7 @@ FileDropComponent --(File)--> ConverterPageComponent --(Rgb[])--> PaletteGridCom
   optional `paletteName` from the `.vpl` `# NAME:` tag, and a `notices`
   array.
 - `convert(entries, options)` -- a plain `switch` on `options.system`
-  (default `nes`, spec S9.4: no registry) composing the matching mapper
+  (default `nes`; no mapper registry) composing the matching mapper
   (`toLumacodeOrder`, `commodoreToLumacodeOrder`, or
   `atariToLumacodeOrder`) with `serializeLmc`.
 - `download(text, baseName)` -- creates a `Blob`, an object URL, and a
@@ -109,7 +109,7 @@ common filesystems are replaced with `_`.
   seed (`converter-page.component.ts`) and this private-field reset are
   required: `emitChange` re-emits `userComment` on every change, so the
   container's seed alone would be immediately overwritten by a stale
-  private copy (DL-001). A private `headerDirty` flag, set only by the sample-rate/
+  private copy. A private `headerDirty` flag, set only by the sample-rate/
   decimation controls' own `valueChanges`, mirrors the `userComment`
   precedent: on a genuine system or norm transition the form re-seeds
   `sampleRate`/`decimation` from `headerFor(system, tvNorm)`, but only
@@ -128,7 +128,7 @@ common filesystems are replaced with `_`.
 
 ## Design Decisions
 
-- **State lives in signals only, no store library** (spec S9.5): `palette`,
+- **State lives in signals only, no store library**: `palette`,
   `options`, `parseError`, `notices`, and `selectableSystems`. `lmcText`
   and `paletteData` are fully derived via `computed()`, so they cannot go
   stale relative to the signals above; a store would create a second

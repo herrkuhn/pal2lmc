@@ -16,8 +16,8 @@ Supported conversions:
 The conversion is a re-indexing, not a reformat: each system's palette
 entries must be reordered into LumaCode index order, and a naive 1:1 byte
 dump parses on the RT4K but renders wrong colors. Generated files
-replicate the official preset format byte-for-byte, verified against a
-vendored corpus of official `.lmc` presets.
+replicate the official preset format byte-for-byte, verified by a golden
+test suite against official `.lmc` presets.
 
 ## Installation
 
@@ -61,6 +61,15 @@ npm run build
 # output in dist/nes-pal-to-lmc-converter/
 ```
 
+## Deployment
+
+The app is published to GitHub Pages via GitHub Actions at
+`https://herrkuhn.github.io/pal2lmc/`. Every push to `main` and every pull
+request runs the test suite and a production build; every green push to
+`main` deploys automatically. Compiled output never enters version
+control -- the deploy job builds fresh from source and publishes the
+result as a GitHub Actions artifact.
+
 ## Architecture
 
 The project has a hard boundary between conversion logic and UI:
@@ -70,19 +79,19 @@ src/app/
   core/palette/          Framework-free conversion core (plain TypeScript,
                          no Angular imports, no DOM): one parser and one
                          mapper per system, a shared .lmc serializer, and
-                         the golden-test corpus.
+                         the golden-test fixtures.
   features/converter/    Angular UI layer: ConversionService (the only
                          caller of the core) plus container and
                          presentational components. UI state is three
                          signals; output is fully derived via computed().
 ```
 
-Correctness is anchored to vendored reference data rather than a format
-spec: every mapping is verified by golden tests
-(`golden.spec.ts`, `golden-multisystem.spec.ts`) that reproduce official
-`.lmc` presets byte-identically from their source palettes. The vendored
-directories `fbx_pal/`, `vice_vpl/`, and `lumacode/` are that correctness
-oracle and must never be edited.
+Correctness is anchored to reference data rather than a format spec:
+every mapping is verified by golden tests (`golden.spec.ts`,
+`golden-multisystem.spec.ts`) that reproduce official `.lmc` presets
+byte-identically from their source palettes. The reference data is
+committed as fixtures in `src/app/core/palette/fixtures/`, so the full
+test suite runs on any fresh clone.
 
 For the full details, see the per-layer docs:
 

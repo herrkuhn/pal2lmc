@@ -1,0 +1,97 @@
+# Single workflow so the deploy job can gate on this test job via
+# `needs:` and a main-ref check -- pull requests naturally get test-only
+# runs without a second workflow file or run-chaining.
+
+name: CI & Deploy
+
+on:
+  # scoped to main: an unrestricted push trigger would double-run CI on
+  # every pull-request branch push (both push and pull_request events
+  # fire); workflow_dispatch covers an on-demand run for a PR-less
+  # feature branch, which otherwise gets no automatic CI
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# pages and id-token required by deploy-pages OIDC; contents restores
+# checkout access once permissions is explicit
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# in-flight deploys run to completion: killing a deploy mid-publish can
+# leave the Pages site in a broken, partially-updated state, so the next
+# push's run queues and publishes once the current one completes
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # No Prettier/format-check step: enforcing one without a committed
+    # .prettierrc would apply Prettier's defaults instead of project style;
+    # formatting drift is cosmetic for a single contributor.
+    steps:
+      # actions pinned to major versions, not exact commits, so security
+      # patches apply automatically without maintenance overhead; v6 is
+      # used specifically because the v5 lines of checkout/setup-node
+      # run on the Node20 action runtime, which GitHub retires from
+      # runners in fall 2026
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          # pinned to the Node version used for local development
+          node-version: 24
+          cache: npm
+      # setup-node does not activate corepack, so npm ci runs against the
+      # committed lockfile using the runner's bundled npm
+      - run: npm ci
+      # the Angular CLI is invoked directly via npx ng so flags such as
+      # --watch=false can be passed through explicitly
+      - run: npx ng test --watch=false
+      # a production build also enforces bundle-size budgets, so a regression here blocks the deploy job that runs after it
+      - run: npx ng build
+
+  # gated on the test job passing and only running for pushes to main, so
+  # pull requests exercise the test job only; rebuilds the app from
+  # source with its own base-href flag -- the app builds in seconds, so
+  # the two jobs stay independent and simple at that cost
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # the github-pages environment is created automatically by the
+    # first successful deploy and carries no branch restriction of its
+    # own; the if-guard above is what confines this workflow's deploys
+    # to main. Post-deploy hardening step: after that first deploy,
+    # restrict the environment's deployment branch rule to main via
+    # Settings -> Environments -> github-pages -> Deployment branches
+    # and tags
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # project (non-user/organization) Pages sites are served under
+      # /<repo>/, so the default <base href="/"> baked into index.html
+      # would 404 every asset request; the dynamic repo-name segment here
+      # also means the flag keeps working if the repository is renamed
+      - run: npx ng build --base-href "/${{ github.event.repository.name }}/"
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          # upload only the browser/ subfolder: the sibling build output
+          # (dist/nes-pal-to-lmc-converter/) nests the site one level too
+          # deep if uploaded directly, and also contains
+          # 3rdpartylicenses.txt, which would then serve at the site root
+          path: dist/nes-pal-to-lmc-converter/browser
+      - uses: actions/deploy-pages@v4
+        id: deployment

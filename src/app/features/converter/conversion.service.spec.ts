@@ -202,9 +202,12 @@ describe('ConversionService', () => {
     it('creates an object URL, clicks an anchor with the sanitized filename, and revokes the URL', () => {
       vi.useFakeTimers();
 
-      const createObjectURL = vi.fn().mockReturnValue('blob:mock-url');
-      const revokeObjectURL = vi.fn();
-      vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+      // Spy on the existing statics instead of replacing the global: a
+      // stubbed-in plain object is not constructible, and it leaks past
+      // this file to break `new URL(...)` for every later spec file that
+      // runs in the same vitest worker.
+      const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url');
+      const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
 
       const anchor = document.createElement('a');
       const click = vi.spyOn(anchor, 'click').mockImplementation(() => {});

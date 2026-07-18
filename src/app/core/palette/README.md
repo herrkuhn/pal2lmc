@@ -14,14 +14,14 @@ Commodore mapping is a fixed 16-entry permutation
 equals LumaCode/MARIA-byte index). A naive 1:1 byte dump parses on the
 RT4K device but renders wrong colors for NES and Commodore sources.
 
-Framework-free by convention (spec S9.1): nothing here imports Angular
+Framework-free by convention: nothing here imports Angular
 packages or touches the DOM. `ConversionService` in
 `src/app/features/converter/` is the only caller.
 
 ## Architecture
 
-Parsers and mappers are sibling pure functions per system (spec S9.4's
-extension-point rule -- no strategy pattern or mapper registry):
+Parsers and mappers are sibling pure functions per system (no strategy
+pattern or mapper registry):
 
 ```
 parsePal(bytes) -> ParseResult                    # pal-parser.ts, NES
@@ -42,13 +42,13 @@ and comment wording from this table rather than branching on `SystemId`
 itself.
 
 `fixtures/` holds the golden-test corpus, base64-embedded rather than loaded
-as test assets: `pal-fixtures.ts` mirrors the eleven NES source `.pal`
-files (seven from `fbx_pal/`, four NES HDR palettes not vendored in the
-repo), `vpl-fixtures.ts` mirrors the two vendored `vice_vpl/` sources, and
-`atari-fixtures.ts` holds the constructed 7800 and 2600 source palettes
+as test assets: `pal-fixtures.ts` holds the eleven NES source `.pal`
+files (seven FBX-era palettes, four NES HDR palettes),
+`vpl-fixtures.ts` the two VICE sources, and
+`atari-fixtures.ts` the constructed 7800 and 2600 source palettes
 (MAME `a7800p_colors` extracted by script, a Wikipedia 2600 table with
 duplicated adjacent pairs -- see Invariants). `lmc-fixtures.ts` and
-`lmc-multisystem-fixtures.ts` mirror the matching official `.lmc` files;
+`lmc-multisystem-fixtures.ts` hold the matching official `.lmc` presets;
 `spec-helpers.ts` holds shared test utilities (`dataLinesOf` and friends)
 used by both golden spec files. Each fixture pair records the canonical
 public download (URL + path in archive, or extraction commit hash for the
@@ -59,7 +59,7 @@ they are the correctness gate.
 
 ## Design Decisions
 
-- **No strategy pattern or mapper registry** for other systems (spec S9.4).
+- **No strategy pattern or mapper registry** for other systems.
   A second exported function beside `toLumacodeOrder`, with the same shape,
   is the intended extension point if another system is ever added.
 - **One shared Commodore permutation.**
@@ -76,11 +76,11 @@ they are the correctness gate.
 - **Boundary enforced by convention, not tooling**: no separate library, no
   ESLint rule. A library split isn't warranted at this size, so a grep for
   Angular package imports under this directory is the acceptance check.
-- **Base64 fixtures duplicate the vendored corpus bytes** inside `.ts` files
-  rather than being loaded as test assets. Duplication is accepted to avoid
-  configuring binary asset loading in the Vitest/jsdom test runner; fixtures
-  are generated mechanically from `fbx_pal/` and `lumacode/`, never
-  hand-typed.
+- **Fixture bytes are base64-embedded** inside `.ts` files rather than
+  loaded as test assets. Embedding is accepted to avoid configuring binary
+  asset loading in the Vitest/jsdom test runner; fixtures are generated
+  mechanically from the canonical downloads recorded in each
+  `FixtureSource`, never hand-typed.
 - **`toLumacodeOrder` never iterates hue 14 or 15.** Direct output-array
   generation (loop bounds 0..13) makes emitting a dropped `$xE`/`$xF` column
   impossible by construction, rather than filtering it out with a
@@ -93,8 +93,8 @@ The `.lmc` first line is derived from console timing, not a free choice:
 samples per pixel. The RT4K ADC oversamples each lumacode symbol
 `decimation`-fold, and its sample rate is capped at 4095 (hence the UI's
 1-4095 range). For the NES: 341 dots per scanline x 3 lumacode samples per
-pixel x 4 = 4092. All 25 vendored presets obey this formula and all 12
-NES-timing presets use exactly `4092 4`; the value depends on video chip
+pixel x 4 = 4092. All 25 official presets surveyed obey this formula and
+all 12 NES-timing presets use exactly `4092 4`; the value depends on video chip
 and TV norm only, never on palette content. The UI therefore treats it as
 a derived default in an advanced section, not a required input.
 
@@ -114,7 +114,7 @@ Per-system header defaults, from `system.ts`'s `SYSTEMS` table:
 | 2600    | `3648 4`  | `3648 4`  |
 
 TV norm changes both numbers for C64 and VIC-20; the 7800 and 2600 headers
-are norm-invariant in the corpus, which is why the norm toggle in the
+are norm-invariant in the official presets, which is why the norm toggle in the
 options form applies only to the Commodore systems (see
 `features/converter/README.md`).
 
@@ -149,14 +149,12 @@ from a sourced timing figure.
   overall byte-identity.
 - Index 21 = `8 + 14*0 + 13`, the arithmetic tying NES color `$0D` to its
   LumaCode position.
-- `lumacode/DIAG.lmc` is the one NES-timing preset whose index 21 is not
-  `303030` (it's `545454`, a diagnostic ramp). It has no `.pal` counterpart
-  and must never be treated as a golden pair.
-- `PC-10`'s golden counterpart lives at `lumacode/PC-10.lmc`, at the vendored
-  corpus's top level -- not in `lumacode/NES Custom/` like the other ten.
-- The four NES HDR pairs' source `.pal` files exist only inside
-  `pal-fixtures.ts` (canonical download: `rt4k_nes_hdr_v2.zip`, see
-  `GOLDEN_PAIRS`); `fbx_pal/` stays FBX-era only.
+- The official `DIAG` preset is the one NES-timing preset whose index 21 is
+  not `303030` (it's `545454`, a diagnostic ramp). It has no `.pal`
+  counterpart and must never be added as a golden pair.
+- The four NES HDR pairs' source `.pal` files have no standalone file
+  counterpart; they exist only inside `pal-fixtures.ts` (canonical
+  download: `rt4k_nes_hdr_v2.zip`, see `GOLDEN_PAIRS`).
 - The 7800 fixture is extracted from MAME `a7800p_colors` by script, not
   hand-typed; the golden spec asserts two structural properties of the
   official table as a transcription guard: hue-0 greys step by exactly
@@ -170,7 +168,6 @@ from a sourced timing figure.
   string }`, with `message` built in-parser; `ParseResult`'s success field
   is named `entries` (type stays `NesPalette`), matching `VplParseResult`
   and `AtariParseResult`.
-  Error-shape unification is DL-003; the `entries` naming is DL-004.
 - `TREBOR_COOL_PAL_B64` (a real-world Trebor-pack 7800 source) is a
   breadth fixture, not a golden pair: no official `.lmc` counterpart
   exists for any Trebor palette, so the assertion is parse-plus-convert
