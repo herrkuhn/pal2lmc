@@ -59,10 +59,9 @@ Open `http://localhost:4200/`, then:
    the system from the file's size and content; where detection is
    ambiguous (e.g. 7800 vs. 2600) it shows a notice and lets you
    override the system by hand.
-2. **Adjust options** -- preset name, TV norm (C64/VIC-20 only), and for
-   NES sources the `$0D` color handling (`visible` matches the official
-   presets; `strict` keeps the source byte). Sample rate and decimation
-   are derived per system and rarely need touching.
+2. **Adjust options** -- preset name and TV norm (C64/VIC-20 only).
+   Sample rate and decimation are derived per system and rarely need
+   touching.
 3. **Preview and download** the generated `.lmc`, then copy it to the
    RT4K SD card's palette directory. If the app recognizes an HDR-headroom
    NES palette, a toggle above the preview lets you switch between HDR,

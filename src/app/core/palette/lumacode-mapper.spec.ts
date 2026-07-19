@@ -22,7 +22,7 @@ function buildPaletteFromBytes(bytes: Uint8Array): NesPalette {
 describe('toLumacodeOrder', () => {
   it('maps every row/hue via the index formula and never surfaces $xE/$xF columns', () => {
     const palette = buildSyntheticPalette();
-    const out = toLumacodeOrder(palette, 'strict');
+    const out = toLumacodeOrder(palette);
 
     for (let row = 0; row < 4; row++) {
       for (let hue = 0; hue < 14; hue++) {
@@ -42,7 +42,7 @@ describe('toLumacodeOrder', () => {
 
   it('hardcodes indices 0..7 to black', () => {
     const palette = buildSyntheticPalette();
-    const out = toLumacodeOrder(palette, 'visible');
+    const out = toLumacodeOrder(palette);
     for (let i = 0; i < 8; i++) {
       expect(out[i]).toEqual({ r: 0, g: 0, b: 0 });
     }
@@ -52,7 +52,7 @@ describe('toLumacodeOrder', () => {
     const palette = buildSyntheticPalette();
     const original = palette.map((c) => ({ ...c }));
 
-    toLumacodeOrder(palette, 'visible');
+    toLumacodeOrder(palette);
 
     expect(palette).toEqual(original);
   });
@@ -61,15 +61,13 @@ describe('toLumacodeOrder', () => {
     const bytes = decodePalBase64(NES_CLASSIC_FBX_PAL_B64);
     const palette = buildPaletteFromBytes(bytes);
 
-    const visible = toLumacodeOrder(palette, 'visible');
-    const strict = toLumacodeOrder(palette, 'strict');
+    const out = toLumacodeOrder(palette);
 
-    expect(visible[8]).toEqual({ r: 0x61, g: 0x61, b: 0x61 });
-    expect(strict[21]).toEqual({ r: 0, g: 0, b: 0 });
-    expect(visible[21]).toEqual({ r: 0x30, g: 0x30, b: 0x30 });
-    expect(visible[22]).toEqual({ r: 0xaa, g: 0xaa, b: 0xaa });
-    expect(visible[36]).toEqual({ r: 0xfc, g: 0xfc, b: 0xfc });
-    expect(visible[50]).toEqual({ r: 0xfc, g: 0xfc, b: 0xfc });
-    expect(visible[63]).toEqual({ r: 0xac, g: 0xac, b: 0xac });
+    expect(out[8]).toEqual({ r: 0x61, g: 0x61, b: 0x61 });
+    expect(out[21]).toEqual({ r: 0, g: 0, b: 0 });
+    expect(out[22]).toEqual({ r: 0xaa, g: 0xaa, b: 0xaa });
+    expect(out[36]).toEqual({ r: 0xfc, g: 0xfc, b: 0xfc });
+    expect(out[50]).toEqual({ r: 0xfc, g: 0xfc, b: 0xfc });
+    expect(out[63]).toEqual({ r: 0xac, g: 0xac, b: 0xac });
   });
 });

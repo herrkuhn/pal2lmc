@@ -118,7 +118,7 @@ export function presetNameFor(system: SystemId, tvNorm: TvNorm): string {
  * @param system - Target system id.
  * @param tvNorm - PAL or NTSC; ignored for systems with one preset.
  * @returns LmcOptions with sampleRate/decimation/system/tvNorm set from
- *   SYSTEMS, color0d defaulted to 'visible', and empty name fields.
+ *   SYSTEMS and empty name fields.
  *
  * Example:
  *   defaultOptionsFor('c64', 'ntsc') // { sampleRate: 3120, decimation: 3, ... }
@@ -128,7 +128,6 @@ export function defaultOptionsFor(system: SystemId, tvNorm: TvNorm): LmcOptions 
   return {
     sampleRate: header.rate,
     decimation: header.dec,
-    color0d: 'visible',
     paletteName: '',
     sourceFileName: '',
     system,

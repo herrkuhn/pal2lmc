@@ -2,7 +2,11 @@
 // .pal/.lmc pair (seven FBX-era, four NES HDR) must round-trip through
 // parsePal -> toLumacodeOrder -> serializeLmc byte-identically on header+data
 // lines (comment blocks legitimately differ by date/attribution and are
-// excluded). Each pair carries its canonical download source; see
+// excluded) -- except entry 21 ($0D): every official file carries 303030
+// there, an error per the RT4K developer (the entry is not the Everdrive
+// cursor color he believed it to be). The converter passes the source
+// value through, so index 21 must be the source's 000000 and be the only
+// difference. Each pair carries its canonical download source; see
 // fixtures/lmc-fixtures.ts.
 
 import { describe, expect, it } from 'vitest';
@@ -11,7 +15,7 @@ import { toLumacodeOrder } from './lumacode-mapper';
 import { serializeLmc } from './lmc-serializer';
 import { decodePalBase64 } from './fixtures/pal-fixtures';
 import { GOLDEN_PAIRS } from './fixtures/lmc-fixtures';
-import { dataEntriesOf, dataLinesOf } from './fixtures/spec-helpers';
+import { dataEntriesOf } from './fixtures/spec-helpers';
 
 describe('golden pairs (spec S8)', () => {
   for (const pair of GOLDEN_PAIRS) {
@@ -25,28 +29,13 @@ describe('golden pairs (spec S8)', () => {
       // parsed.entries (DL-004); fixture files and byte-identity
       // assertions are unaffected, preserving the correctness
       // oracle (R-002).
-      it('reproduces the official .lmc header and data lines byte-identically in visible mode', () => {
+      it('matches the official file everywhere except index 21, where the source $0D passes through', () => {
         const parsed = parsePal(bytes);
         expect(parsed.ok).toBe(true);
         if (!parsed.ok) return;
-        const generated = serializeLmc(toLumacodeOrder(parsed.entries, 'visible'), {
+        const generated = serializeLmc(toLumacodeOrder(parsed.entries), {
           sampleRate: 4092,
           decimation: 4,
-          color0d: 'visible',
-          paletteName: pair.name,
-          sourceFileName: pair.palSource.pathInArchive,
-        });
-        expect(dataLinesOf(generated)).toEqual(dataLinesOf(pair.lmcText));
-      });
-
-      it('matches the official file everywhere except index 21 in strict mode', () => {
-        const parsed = parsePal(bytes);
-        expect(parsed.ok).toBe(true);
-        if (!parsed.ok) return;
-        const generated = serializeLmc(toLumacodeOrder(parsed.entries, 'strict'), {
-          sampleRate: 4092,
-          decimation: 4,
-          color0d: 'strict',
           paletteName: pair.name,
           sourceFileName: pair.palSource.pathInArchive,
         });
@@ -57,6 +46,7 @@ describe('golden pairs (spec S8)', () => {
           .filter((index) => index !== -1);
         expect(diffIndices).toEqual([21]);
         expect(generatedEntries[21]).toBe('000000');
+        expect(officialEntries[21]).toBe('303030');
       });
     });
   }

@@ -78,25 +78,6 @@ const COMMODORE_SYSTEMS: SystemId[] = ['c64', 'vic20'];
         </fieldset>
       }
 
-      @if (currentSystem() === 'nes') {
-        <fieldset>
-          <legend>Color $0D ("blacker than black")</legend>
-          <p class="color0d-hint">
-            On real hardware $0D dips below black level; some games draw cursors, outlines, or whole
-            backgrounds with it. Lumacode can't go below black, so choose how to map it.
-          </p>
-          <mat-radio-group formControlName="color0d">
-            <mat-radio-button value="visible">
-              Visible — remap to 303030, matching the official presets, so $0D artwork stays
-              distinguishable from black
-            </mat-radio-button>
-            <mat-radio-button value="strict">
-              Strict — keep the .pal file's value (usually 000000, same as regular black)
-            </mat-radio-button>
-          </mat-radio-group>
-        </fieldset>
-      }
-
       <mat-form-field>
         <mat-label>Comment block</mat-label>
         <textarea matInput rows="3" formControlName="comment"></textarea>
@@ -142,7 +123,6 @@ const COMMODORE_SYSTEMS: SystemId[] = ['c64', 'vic20'];
         font: var(--mat-sys-label-large);
         padding: 0 0.5rem;
       }
-      .color0d-hint,
       .sampling-hint {
         font: var(--mat-sys-body-small);
         color: var(--mat-sys-on-surface-variant);
@@ -200,7 +180,6 @@ export class OptionsFormComponent {
       nonNullable: true,
       validators: [integerValidator, positiveValidator],
     }),
-    color0d: new FormControl<'strict' | 'visible'>('visible', { nonNullable: true }),
     comment: new FormControl('', { nonNullable: true }),
   });
 
@@ -239,7 +218,6 @@ export class OptionsFormComponent {
           tvNorm,
           sampleRate: opts.sampleRate,
           decimation: opts.decimation,
-          color0d: opts.color0d,
           comment: opts.comment ?? '',
         },
         { emitEvent: false },
@@ -304,7 +282,6 @@ export class OptionsFormComponent {
       paletteName: value.paletteName,
       sampleRate: value.sampleRate,
       decimation: value.decimation,
-      color0d: value.color0d,
       system: value.system,
       tvNorm: value.tvNorm,
       sourceFileName: this.options().sourceFileName,

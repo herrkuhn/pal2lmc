@@ -6,7 +6,6 @@ import { defaultOptionsFor, SystemId, SYSTEMS, TvNorm } from './system';
 const BASE_OPTIONS: LmcOptions = {
   sampleRate: 4092,
   decimation: 4,
-  color0d: 'visible',
   paletteName: 'Test Palette',
   sourceFileName: 'test.pal',
 };
@@ -38,19 +37,6 @@ describe('serializeLmc', () => {
       const parts = line.split(',');
       expect(parts).toHaveLength(16);
     }
-  });
-
-  it('includes an Index 21 visibility-fix explanation in visible mode', () => {
-    const result = serializeLmc([], { ...BASE_OPTIONS, color0d: 'visible' });
-
-    expect(result).toContain('Index 21');
-    expect(result).toContain('303030');
-  });
-
-  it('omits the Index 21 explanation in strict mode', () => {
-    const result = serializeLmc([], { ...BASE_OPTIONS, color0d: 'strict' });
-
-    expect(result).not.toContain('Index 21');
   });
 
   it('normalizes a comment override with non-ASCII characters and missing # prefix', () => {
@@ -115,16 +101,6 @@ describe('serializeLmc multi-system generalization', () => {
       );
     },
   );
-
-  it('omits the $0D comment lines for every system other than nes even in visible mode', () => {
-    const result = serializeLmc([], {
-      ...BASE_OPTIONS,
-      color0d: 'visible',
-      system: 'c64',
-      tvNorm: 'pal',
-    });
-    expect(result).not.toContain('Index 21');
-  });
 
   it('behaves exactly like nes/pal when system/tvNorm are absent', () => {
     const withDefaults = serializeLmc(sentinelEntries, { ...BASE_OPTIONS, comment: '' });

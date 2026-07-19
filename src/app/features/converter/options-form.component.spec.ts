@@ -47,7 +47,7 @@ describe('OptionsFormComponent', () => {
     expect(component.form.controls.decimation.value).toBe(3);
   });
 
-  it('renders the $0D fieldset only when system is nes', () => {
+  it('tracks currentSystem to the loaded options', () => {
     const fixture = TestBed.createComponent(OptionsFormComponent);
     const component = fixture.componentInstance as any;
     fixture.componentRef.setInput('options', { ...defaultOptionsFor('nes', 'pal'), paletteName: 'x' });

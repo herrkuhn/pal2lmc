@@ -28,7 +28,7 @@ parsePal(bytes) -> ParseResult                    # pal-parser.ts, NES
 parseVpl(text) -> VplParseResult                  # vpl-parser.ts, C64/VIC-20
 parseAtariPal(bytes) -> AtariParseResult          # atari-pal-parser.ts, 7800/2600
 
-toLumacodeOrder(palette, color0d) -> Rgb[]        # lumacode-mapper.ts, NES
+toLumacodeOrder(palette) -> Rgb[]                 # lumacode-mapper.ts, NES
 commodoreToLumacodeOrder(entries) -> Rgb[]        # commodore-mapper.ts, C64/VIC-20
 atariToLumacodeOrder(entries) -> Rgb[]            # atari-mapper.ts, 7800/2600
 
@@ -180,11 +180,12 @@ from a sourced timing figure.
 - `.lmc` entries 0-7 are always `000000`; their meaning is unconfirmed
   (presumed sync levels). They are hardcoded in `toLumacodeOrder`, never
   exposed as an option.
-- All eleven golden-pair source `.pal` files have NES color `$0D` = `000000`, so the
-  visibility fix (`color0d: 'visible'` forcing index 21 to `303030`) is
-  provably the *only* difference between strict-mode output and the official
-  files. `golden.spec.ts` asserts this directly rather than just asserting
-  overall byte-identity.
+- NES color `$0D` (index 21) passes through unchanged like every other
+  entry. The official presets carry `303030` there, an error per the RT4K
+  developer (the entry is not the Everdrive cursor color), so the official
+  files are the byte-exact oracle for every entry except index 21:
+  `golden.spec.ts` asserts index 21 is the *only* difference and equals
+  the source's `000000`.
 - Index 21 = `8 + 14*0 + 13`, the arithmetic tying NES color `$0D` to its
   LumaCode position.
 - The official `DIAG` preset is the one NES-timing preset whose index 21 is
@@ -205,10 +206,6 @@ from a sourced timing figure.
   values above 1.0 linear round-trip within `1e-6`;
   `ConversionService.hdrPreviewColors` reuses this same pair rather than
   duplicating the transfer function in the WebGPU shader.
-- HDR-headroom palettes still get the NES `$0D` = `000000` -> `303030`
-  visible-fix treatment described above: that fix operates on raw palette
-  bytes ahead of HDR reconstruction, so the two are independent steps
-  applied in sequence, not competing treatments of the same byte.
 - The 7800 fixture is extracted from MAME `a7800p_colors` by script, not
   hand-typed; the golden spec asserts two structural properties of the
   official table as a transcription guard: hue-0 greys step by exactly

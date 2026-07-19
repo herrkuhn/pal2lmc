@@ -136,8 +136,7 @@ jsdom-testable without a real GPU.
   group, always rendered, options limited to `selectableSystems()`,
   disabled when only one system is selectable; TV norm radio group, shown
   only for c64/vic20 via
-  `showNormToggle()`; `$0D` radio, `visible` default, shown only when the
-  current system is `nes`; comment textarea; collapsed advanced panel
+  `showNormToggle()`; comment textarea; collapsed advanced panel
   holding sample rate, integer 1-4095, decimation, positive integer with a
   non-blocking warning outside 1-8, and a `samplingHint()` computed from
   `SYSTEMS[currentSystem()].samplingHint`). Sample rate and decimation are
@@ -256,11 +255,10 @@ verified by manual/recorded smoke rather than the automated suite.
 - **`OptionsFormComponent` distinguishes `comment: undefined` from
   `comment: ''`.** Undefined means "generate the default S3.3 comment
   block"; a string means the user edited or cleared it.
-- **`$0D` radio is shown only for `nes`.** Remapping NES color `$0D` to
-  `303030` (index 21) so cursor glyphs stay visible on black is an official
-  `.lmc` preset convention, not a firmware requirement enforced by the
-  device -- the other four systems have no `$0D`-equivalent index and no
-  corresponding convention, so the fieldset does not generalize to them.
+- **No `$0D` option.** NES color `$0D` passes through like every other
+  entry -- the official presets' `303030` at index 21 is an error per the
+  RT4K developer, not a convention worth reproducing -- so the form has
+  no NES-specific fieldset.
 - **Header re-seed mirrors the `userComment` precedent.** A private
   `headerDirty` flag in `options-form.component.ts` gates re-seeding
   `sampleRate`/`decimation` on a system or norm switch, the same

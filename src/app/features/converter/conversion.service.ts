@@ -185,7 +185,7 @@ export class ConversionService {
   convert(entries: Rgb[], options: LmcOptions): string {
     switch (options.system ?? 'nes') {
       case 'nes':
-        return serializeLmc(toLumacodeOrder(entries, options.color0d), options);
+        return serializeLmc(toLumacodeOrder(entries), options);
       case 'c64':
       case 'vic20':
         return serializeLmc(commodoreToLumacodeOrder(entries), options);

@@ -26,7 +26,6 @@ describe('golden pairs Tier 1 -- Commodore (spec S8)', () => {
         const generated = serializeLmc(commodoreToLumacodeOrder(parsed.entries), {
           sampleRate: pair.expectedHeader.rate,
           decimation: pair.expectedHeader.dec,
-          color0d: 'visible',
           paletteName: pair.name,
           sourceFileName: pair.name,
           system: pair.system,
@@ -75,7 +74,6 @@ describe('golden pairs Tier 2 -- Atari (spec S8)', () => {
         const generated = serializeLmc(atariToLumacodeOrder(parsed.entries), {
           sampleRate: pair.expectedHeader.rate,
           decimation: pair.expectedHeader.dec,
-          color0d: 'visible',
           paletteName: pair.name,
           sourceFileName: pair.name,
           system: pair.system,
@@ -115,7 +113,6 @@ describe('golden pairs Tier 2 -- Atari (spec S8)', () => {
     const generated = serializeLmc(atariToLumacodeOrder(parsed.entries), {
       sampleRate: 3900,
       decimation: 3,
-      color0d: 'visible',
       paletteName: 'Trebors NTSC CALIBRATED COOL',
       sourceFileName: 'NTSC_CALIBRATED_COOL.pal',
       system: 'a7800',

@@ -257,7 +257,7 @@ describe('ConversionService', () => {
       if (!parsed.ok) return;
 
       const options = { ...DEFAULT_OPTIONS, paletteName: 'NES Classic (FBX)' };
-      const expected = serializeLmc(toLumacodeOrder(parsed.entries, options.color0d), options);
+      const expected = serializeLmc(toLumacodeOrder(parsed.entries), options);
       expect(service.convert(parsed.entries, options)).toBe(expected);
     });
 

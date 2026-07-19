@@ -18,21 +18,11 @@ function isoDate(): string {
 }
 
 function defaultCommentBody(opts: LmcOptions, system: SystemId, tvNorm: TvNorm): string[] {
-  const lines = [
+  return [
     `RetroTINK LumaCode preset: ${presetNameFor(system, tvNorm)} -- ${opts.paletteName}`,
     'First line = ADC sample rate and decimation, applied when loaded.',
     `Converted from ${opts.sourceFileName} on ${isoDate()}.`,
   ];
-  // $0D ("blacker than black") is an NES PPU quirk; the other systems have
-  // no equivalent entry to remap, so the fieldset and these lines stay
-  // NES-only regardless of color0d.
-  if (system === 'nes' && opts.color0d === 'visible') {
-    lines.push(
-      'Index 21 ($0D) set to 303030 so cursor glyphs stay visible on black;',
-      'change it back to 000000 for strict accuracy.',
-    );
-  }
-  return lines;
 }
 
 function normalizeCommentLine(line: string): string {
@@ -56,8 +46,8 @@ function buildCommentBlock(opts: LmcOptions, system: SystemId, tvNorm: TvNorm): 
  * (toLumacodeOrder / commodoreToLumacodeOrder / atariToLumacodeOrder).
  *
  * opts.system and opts.tvNorm default to nes/pal when absent.
- * Comment-block wording, hex case, and the NES-only $0D lines
- * are resolved from the SYSTEMS row for the effective system.
+ * Comment-block wording and hex case are resolved from the SYSTEMS row
+ * for the effective system.
  * Chunking into ENTRIES_PER_LINE-wide lines is entry-count agnostic, so
  * it serves 16/64/256-entry palettes unchanged.
  *

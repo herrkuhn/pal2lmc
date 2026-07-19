@@ -16,7 +16,6 @@ export type NesPalette = Rgb[];
 export interface LmcOptions {
   sampleRate: number;
   decimation: number;
-  color0d: 'strict' | 'visible';
   paletteName: string;
   sourceFileName: string;
   // Absent means nes/pal; the UI always supplies both explicitly once a

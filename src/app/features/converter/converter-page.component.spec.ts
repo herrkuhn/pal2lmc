@@ -94,7 +94,7 @@ describe('ConverterPageComponent', () => {
     expect(compiled.querySelector('pre')?.textContent ?? '').toBe('');
   });
 
-  it('flips index 21 between 303030 and 000000 when color0d toggles', async () => {
+  it('passes the source $0D value through at index 21', async () => {
     const fixture = TestBed.createComponent(ConverterPageComponent);
     const component = fixture.componentInstance as any;
 
@@ -102,15 +102,9 @@ describe('ConverterPageComponent', () => {
     const file = new File([new Uint8Array(bytes)], 'NES Classic (FBX).pal');
     await component.onFile(file);
 
-    component.options.update((current: LmcOptions) => ({ ...current, color0d: 'visible' }));
     fixture.detectChanges();
-    const visibleEntries = component.lmcText()!.trim().split('\n\n').pop()!.split('\n');
-    expect(visibleEntries.join(',').split(',')[21]).toBe('303030');
-
-    component.options.update((current: LmcOptions) => ({ ...current, color0d: 'strict' }));
-    fixture.detectChanges();
-    const strictEntries = component.lmcText()!.trim().split('\n\n').pop()!.split('\n');
-    expect(strictEntries.join(',').split(',')[21]).toBe('000000');
+    const entries = component.lmcText()!.trim().split('\n\n').pop()!.split('\n');
+    expect(entries.join(',').split(',')[21]).toBe('000000');
   });
 
   it('seeds system, selectable systems, and header defaults per loaded file kind', async () => {
