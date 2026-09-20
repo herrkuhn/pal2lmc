@@ -139,10 +139,11 @@ jsdom-testable without a real GPU.
   `showNormToggle()`; comment textarea; collapsed advanced panel
   holding sample rate, integer 1-4095, decimation, positive integer with a
   non-blocking warning outside 1-8, and a `samplingHint()` computed from
-  `SYSTEMS[currentSystem()].samplingHint`). Sample rate and decimation are
-  intentionally not `Validators.required` -- they are constants derived
-  from console timing (see `core/palette/README.md`), so no required
-  asterisk is shown; the integer/range validators still gate emission.
+  `SYSTEMS[currentSystem()].samplingHint`, which names the fixed header
+  tokens (anchor and, for NES, `nes=1`) the selected system emits. Sample rate
+  and decimation are intentionally not `Validators.required` -- they are
+  constants derived from console timing (see `core/palette/README.md`), so no
+  required asterisk is shown; the integer/range validators still gate emission.
   Emits `optionsChange` only while the form is valid (`form.valueChanges`
   gated on `form.valid`). Tracks the comment textarea in a private
   `userComment` field updated only by the comment control's own
@@ -255,16 +256,20 @@ verified by manual/recorded smoke rather than the automated suite.
 - **`OptionsFormComponent` distinguishes `comment: undefined` from
   `comment: ''`.** Undefined means "generate the default S3.3 comment
   block"; a string means the user edited or cleared it.
-- **No `$0D` option.** NES color `$0D` passes through like every other
-  entry -- the official presets' `303030` at index 21 is an error per the
-  RT4K developer, not a convention worth reproducing -- so the form has
-  no NES-specific fieldset.
+- **No NES-specific fieldset.** NES color `$0D` passes through like every
+  other entry, and the mapper fixes LumaCode index 35 black because the
+  PPUdigitizer folds `$1D` and every `$xE`/`$xF` into that word -- both are
+  device facts, not user preferences, so the form offers no NES-specific
+  controls.
 - **Header re-seed mirrors the `userComment` precedent.** A private
   `headerDirty` flag in `options-form.component.ts` gates re-seeding
   `sampleRate`/`decimation` on a system or norm switch, the same
   dirty-tracking shape already used for the comment textarea -- silently
   overwriting a user-set header value on a switch would lose work the
-  same way overwriting an in-progress comment edit would.
+  same way overwriting an in-progress comment edit would. The header
+  line's anchor and protocol tokens are derived from `SYSTEMS` for the
+  selected system/norm, not form fields, so a hand-edited sample rate
+  still ships the system's anchor.
 - **768-byte detection is a heuristic with a user override, not a modal.**
   Because the Atari mapping is identity for both 7800 and 2600,
   misdetecting a 768-byte source only changes header, hex case, and

@@ -2,7 +2,9 @@
 // by convention: no Angular package imports, no DOM types (spec S9.1).
 // This is the single source of per-system knowledge: header defaults, hex
 // case, entry count, preset comment wording, and the advanced-panel sampling
-// hint. serializeLmc, defaultOptionsFor, and the options-form UI all read
+// hint. Header defaults include the per-system word-phase anchor and any
+// protocol tokens (e.g. NES's nes=1) serializeLmc appends to the header
+// line. serializeLmc, defaultOptionsFor, and the options-form UI all read
 // the same SYSTEMS row rather than threading these facts as ad-hoc
 // parameters.
 
@@ -16,6 +18,9 @@ export type TvNorm = 'pal' | 'ntsc';
 export interface HeaderDefaults {
   rate: number;
   dec: number;
+  // Word-phase constant measured per system on the reference generator,
+  // norm-keyed only where the measurement itself differs (the VIC-20).
+  anchor: number;
 }
 
 export interface SystemRow {
@@ -29,74 +34,89 @@ export interface SystemRow {
   hexCase: 'lower' | 'upper';
   entryCount: 16 | 64 | 256;
   samplingHint: string;
+  // Tokens appended after anchor=N on the header line, e.g. ['nes=1'] for
+  // nes -- the NES protocol flag that makes 1.82.0+ articles render the
+  // PPU emphasis words 0..7 as a colour tint (older articles ignore it).
+  // Every other system emits no protocol tokens.
+  protocolTokens: readonly string[];
 }
 
-// Single authoritative row per system: header defaults per
-// TV norm, hex case, entry count, preset comment wording, and the
-// advanced-panel sampling hint. Norm affects only the header pair and
-// comment text, never color data.
+// Single authoritative row per system: header defaults per TV norm
+// (rate, decimation, and the measured anchor), hex case, entry count,
+// preset comment wording, protocol tokens appended after the anchor,
+// and the advanced-panel sampling hint. Norm affects only the header
+// fields (rate, decimation, and, for the VIC-20, anchor) and comment
+// text, never color data.
 export const SYSTEMS: Record<SystemId, SystemRow> = {
   nes: {
     id: 'nes',
     displayName: 'NES / Famicom',
     presetName: 'NES / Famicom',
-    header: { rate: 4092, dec: 4 },
+    header: { rate: 4092, dec: 4, anchor: 1 },
     hexCase: 'lower',
     entryCount: 64,
     samplingHint:
       'The NES draws 341 dots per scanline and lumacode carries 3 samples per pixel, ' +
-      'oversampled 4x = 4092. Every official NES preset uses 4092 / 4.',
+      'oversampled 4x = 4092. Every official NES preset uses 4092 / 4. The header also ' +
+      'carries anchor=1 nes=1, a per-system constant.',
+    protocolTokens: ['nes=1'],
   },
   c64: {
     id: 'c64',
     displayName: 'Commodore 64 / C128',
     presetName: { pal: 'Commodore 64 / C128 (PAL)', ntsc: 'Commodore 64 / C128 (NTSC)' },
     header: {
-      pal: { rate: 4032, dec: 4 },
-      ntsc: { rate: 3120, dec: 3 },
+      pal: { rate: 4032, dec: 4, anchor: 1 },
+      ntsc: { rate: 3120, dec: 3, anchor: 1 },
     },
     hexCase: 'lower',
     entryCount: 16,
     samplingHint:
       'The C64/C128 draws 504 (PAL) or 520 (NTSC) dots per scanline and lumacode carries ' +
-      '2 samples per pixel, oversampled 4x (PAL) or 3x (NTSC) = 4032 / 4 or 3120 / 3.',
+      '2 samples per pixel, oversampled 4x (PAL) or 3x (NTSC) = 4032 / 4 or 3120 / 3. The ' +
+      'header also carries anchor=1, a per-system constant.',
+    protocolTokens: [],
   },
   vic20: {
     id: 'vic20',
     displayName: 'Commodore VIC-20',
     presetName: { pal: 'Commodore VIC-20 (PAL)', ntsc: 'Commodore VIC-20 (NTSC)' },
     header: {
-      pal: { rate: 2272, dec: 4 },
-      ntsc: { rate: 2080, dec: 4 },
+      pal: { rate: 2272, dec: 4, anchor: 4 },
+      ntsc: { rate: 2080, dec: 4, anchor: 0 },
     },
     hexCase: 'lower',
     entryCount: 16,
     samplingHint:
       'The VIC-20 draws 284 (PAL) or 260 (NTSC) dots per scanline and lumacode carries ' +
-      '2 samples per pixel, oversampled 4x = 2272 / 4 or 2080 / 4.',
+      '2 samples per pixel, oversampled 4x = 2272 / 4 or 2080 / 4. The header also carries ' +
+      'anchor=4 (PAL) or anchor=0 (NTSC), a per-system constant.',
+    protocolTokens: [],
   },
   a7800: {
     id: 'a7800',
     displayName: 'Atari 7800',
     presetName: 'Atari 7800',
-    header: { rate: 3900, dec: 3 },
+    header: { rate: 4086, dec: 3, anchor: 9 },
     hexCase: 'lower',
     entryCount: 256,
     samplingHint:
-      'The 7800 preset copies the official header verbatim: 3900 / 3 (1300 symbols per ' +
-      "line); this does not factor against a confirmed MARIA dot count the way the other " +
-      'systems\' formulas do.',
+      "The 7800's MARIA generator draws 341 dots per scanline at 4 samples per dot with " +
+      '2 symbols skipped at x=0, giving 1362 symbols per line; oversampled 3x = 4086 / 3 ' +
+      'for both norms. The header also carries anchor=9, a per-system constant.',
+    protocolTokens: [],
   },
   a2600: {
     id: 'a2600',
     displayName: 'Atari 2600',
     presetName: 'Atari 2600',
-    header: { rate: 3648, dec: 4 },
+    header: { rate: 3648, dec: 4, anchor: 7 },
     hexCase: 'upper',
     entryCount: 256,
     samplingHint:
       'The 2600 draws 228 dots per scanline and lumacode carries 4 samples per pixel, ' +
-      'oversampled 4x = 3648 / 4.',
+      'oversampled 4x = 3648 / 4. The header also carries anchor=7, a per-system constant.',
+    protocolTokens: [],
   },
 };
 

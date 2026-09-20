@@ -11,6 +11,8 @@ const BASE_OPTIONS: LmcOptions = {
 };
 
 describe('serializeLmc', () => {
+  // The expected literal's header carries nes's anchor and protocol token:
+  // serializeLmc reads both from SYSTEMS, never from BASE_OPTIONS alone.
   it('serializes a small array with an empty comment to the exact expected literal', () => {
     const entries: Rgb[] = [
       { r: 0, g: 0, b: 0 },
@@ -19,7 +21,7 @@ describe('serializeLmc', () => {
 
     const result = serializeLmc(entries, { ...BASE_OPTIONS, comment: '' });
 
-    expect(result).toBe('4092 4\n\n000000,ff8001\n');
+    expect(result).toBe('4092 4 anchor=1 nes=1\n\n000000,ff8001\n');
   });
 
   it('splits a 64-entry array into exactly 4 lines of 16 comma-separated entries', () => {
@@ -113,21 +115,39 @@ describe('serializeLmc multi-system generalization', () => {
     expect(withDefaults).toBe(withExplicitNes);
   });
 
+  // Each row's headerLine pairs defaultOptionsFor's rate/dec with the
+  // system's anchor and protocol tokens, so this table doubles as
+  // serializeLmc's header-line coverage for every supported system/norm.
   it.each([
-    ['nes', 'pal', 4092, 4],
-    ['c64', 'pal', 4032, 4],
-    ['c64', 'ntsc', 3120, 3],
-    ['vic20', 'pal', 2272, 4],
-    ['vic20', 'ntsc', 2080, 4],
-    ['a7800', 'pal', 3900, 3],
-    ['a2600', 'pal', 3648, 4],
-  ] as [SystemId, TvNorm, number, number][])(
-    'defaultOptionsFor returns the verified header pair for %s/%s',
-    (system, tvNorm, rate, dec) => {
+    ['nes', 'pal', 4092, 4, '4092 4 anchor=1 nes=1'],
+    ['c64', 'pal', 4032, 4, '4032 4 anchor=1'],
+    ['c64', 'ntsc', 3120, 3, '3120 3 anchor=1'],
+    ['vic20', 'pal', 2272, 4, '2272 4 anchor=4'],
+    ['vic20', 'ntsc', 2080, 4, '2080 4 anchor=0'],
+    ['a7800', 'pal', 4086, 3, '4086 3 anchor=9'],
+    ['a2600', 'pal', 3648, 4, '3648 4 anchor=7'],
+  ] as [SystemId, TvNorm, number, number, string][])(
+    'defaultOptionsFor returns the verified header pair for %s/%s, and serializeLmc emits its header line',
+    (system, tvNorm, rate, dec, headerLine) => {
       const options = defaultOptionsFor(system, tvNorm);
       expect(options.sampleRate).toBe(rate);
       expect(options.decimation).toBe(dec);
       expect(SYSTEMS[system].entryCount).toBeGreaterThan(0);
+
+      const result = serializeLmc([], { ...options, comment: '' });
+      expect(result.split('\n')[0]).toBe(headerLine);
     },
   );
+
+  it('keeps the system anchor when sampleRate/decimation are hand-edited', () => {
+    const result = serializeLmc([], {
+      ...BASE_OPTIONS,
+      comment: '',
+      system: 'nes',
+      tvNorm: 'pal',
+      sampleRate: 1234,
+      decimation: 2,
+    });
+    expect(result.split('\n')[0]).toBe('1234 2 anchor=1 nes=1');
+  });
 });

@@ -1,5 +1,5 @@
 import { LmcOptions, Rgb } from './models';
-import { presetNameFor, SYSTEMS, SystemId, TvNorm } from './system';
+import { headerFor, presetNameFor, SYSTEMS, SystemId, TvNorm } from './system';
 
 const ENTRIES_PER_LINE = 16;
 
@@ -46,13 +46,17 @@ function buildCommentBlock(opts: LmcOptions, system: SystemId, tvNorm: TvNorm): 
  * (toLumacodeOrder / commodoreToLumacodeOrder / atariToLumacodeOrder).
  *
  * opts.system and opts.tvNorm default to nes/pal when absent.
- * Comment-block wording and hex case are resolved from the SYSTEMS row
- * for the effective system.
+ * Comment-block wording, hex case, anchor, and protocol tokens are
+ * resolved from the SYSTEMS row for the effective system/norm. The
+ * header line is `rate dec anchor=N` plus the system's protocol tokens
+ * (e.g. `nes=1`), single-space separated.
  * Chunking into ENTRIES_PER_LINE-wide lines is entry-count agnostic, so
  * it serves 16/64/256-entry palettes unchanged.
  *
  * @param entries - LumaCode-ordered color entries.
- * @param opts - Header, comment, and per-system options.
+ * @param opts - Header (sampleRate/decimation), comment, and per-system
+ * options; anchor and protocol tokens are not opts fields, they come
+ * from SYSTEMS for the effective system/norm.
  * @returns Full .lmc file text, always ending in exactly one newline.
  */
 export function serializeLmc(entries: Rgb[], opts: LmcOptions): string {
@@ -62,7 +66,17 @@ export function serializeLmc(entries: Rgb[], opts: LmcOptions): string {
   const tvNorm = opts.tvNorm ?? 'pal';
   const hexCase = SYSTEMS[system].hexCase;
   const commentBlock = buildCommentBlock(opts, system, tvNorm);
-  const header = `${opts.sampleRate} ${opts.decimation}`;
+  // anchor and protocol tokens are per-system facts, not LmcOptions fields,
+  // so a hand-edited sampleRate/decimation still ships the system's anchor;
+  // every official per-system preset spells anchor explicitly (including
+  // anchor=0), so it is never omitted here either.
+  const { anchor } = headerFor(system, tvNorm);
+  const header = [
+    opts.sampleRate,
+    opts.decimation,
+    `anchor=${anchor}`,
+    ...SYSTEMS[system].protocolTokens,
+  ].join(' ');
   const dataLines: string[] = [];
   for (let i = 0; i < entries.length; i += ENTRIES_PER_LINE) {
     dataLines.push(

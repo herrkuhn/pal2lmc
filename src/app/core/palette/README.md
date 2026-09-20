@@ -52,9 +52,11 @@ relative brightness up to whatever headroom the browser and display
 offer, not a colorimetric match to RT4K hardware output.
 
 `system.ts` holds the `SYSTEMS` table, the single source of per-system facts:
-header defaults per TV norm, hex case, entry count, preset comment wording,
-and the sampling-rate hint shown in the UI. `serializeLmc` reads hex case
-and comment wording from this table rather than branching on `SystemId`
+header defaults per TV norm (sample rate, decimation, and the word-phase
+anchor), any protocol tokens appended after the anchor (e.g. NES's `nes=1`),
+hex case, entry count, preset comment wording, and the sampling-rate hint
+shown in the UI. `serializeLmc` reads hex case, comment wording, anchor,
+and protocol tokens from this table rather than branching on `SystemId`
 itself.
 
 `fixtures/` holds the golden-test corpus, base64-embedded rather than loaded
@@ -118,7 +120,9 @@ they are the correctness gate.
   loaded as test assets. Embedding is accepted to avoid configuring binary
   asset loading in the Vitest/jsdom test runner; fixtures are generated
   mechanically from the canonical downloads recorded in each
-  `FixtureSource`, never hand-typed.
+  `FixtureSource`, never hand-typed. Every `.lmc` fixture text is copied
+  byte-exact from the RT4K firmware 1.82.1 release archive, the origin of
+  the golden corpus.
 - **`toLumacodeOrder` never iterates hue 14 or 15.** Direct output-array
   generation (loop bounds 0..13) makes emitting a dropped `$xE`/`$xF` column
   impossible by construction, rather than filtering it out with a
@@ -131,8 +135,8 @@ The `.lmc` first line is derived from console timing, not a free choice:
 samples per pixel. The RT4K ADC oversamples each lumacode symbol
 `decimation`-fold, and its sample rate is capped at 4095 (hence the UI's
 1-4095 range). For the NES: 341 dots per scanline x 3 lumacode samples per
-pixel x 4 = 4092. All 25 official presets surveyed obey this formula and
-all 12 NES-timing presets use exactly `4092 4`; the value depends on video chip
+pixel x 4 = 4092. All 33 official presets surveyed obey this formula and
+all 13 NES-timing presets use exactly `4092 4`; the value depends on video chip
 and TV norm only, never on palette content. The UI therefore treats it as
 a derived default in an advanced section, not a required input.
 
@@ -141,25 +145,40 @@ c0pperdragon's LumaCode wiki, PPUdigitizer page (3 samples per NES pixel,
 2 per C64 pixel); consolemods.org RT4K wiki (analog ADC tables corroborate
 the dot counts: NES 3410/10 -> 341, C64 PAL 2016/4 -> 504).
 
+The header line is `rate dec anchor=N` followed by any protocol tokens for
+the system, single-space separated (e.g. `4092 4 anchor=1 nes=1` for NES).
+`anchor` is a word-phase constant measured per system on the reference
+generator, norm-keyed only for the VIC-20 (PAL `4`, NTSC `0`); every other
+system's anchor is norm-invariant. The token is emitted even when its value
+is `0`: the official VIC-20 NTSC and MSX/Colecovision presets spell
+`anchor=0` explicitly, and byte-identity with the official files is the
+correctness oracle, so a zero anchor is written out rather than omitted.
+`nes=1` is the NES protocol token: it makes RT4K firmware 1.82.0 and later
+render the PPU emphasis words (raw 0-7) as a color tint, while earlier
+firmware ignores it. Generated presets reproduce the header grammar of RT4K
+firmware 1.82.1 and target that firmware or later; there is no legacy
+header mode, and a user on earlier firmware can hand-trim the trailing
+tokens, since the first two numbers alone form a valid pre-1.82 header.
+
 Per-system header defaults, from `system.ts`'s `SYSTEMS` table:
 
-| System  | PAL       | NTSC      |
-| ------- | --------- | --------- |
-| NES     | `4092 4`  | `4092 4`  |
-| C64     | `4032 4`  | `3120 3`  |
-| VIC-20  | `2272 4`  | `2080 4`  |
-| 7800    | `3900 3`  | `3900 3`  |
-| 2600    | `3648 4`  | `3648 4`  |
+| System  | PAL                     | NTSC                     |
+| ------- | ----------------------- | ------------------------ |
+| NES     | `4092 4 anchor=1 nes=1` | `4092 4 anchor=1 nes=1`  |
+| C64     | `4032 4 anchor=1`       | `3120 3 anchor=1`        |
+| VIC-20  | `2272 4 anchor=4`       | `2080 4 anchor=0`        |
+| 7800    | `4086 3 anchor=9`       | `4086 3 anchor=9`        |
+| 2600    | `3648 4 anchor=7`       | `3648 4 anchor=7`        |
 
-TV norm changes both numbers for C64 and VIC-20; the 7800 and 2600 headers
-are norm-invariant in the official presets, which is why the norm toggle in the
-options form applies only to the Commodore systems (see
-`features/converter/README.md`).
+TV norm changes rate and decimation for both C64 and VIC-20, and also
+changes the VIC-20's anchor (`4` PAL / `0` NTSC); the C64's anchor stays
+`1` for both norms. The 7800 and 2600 headers are entirely norm-invariant
+in the official presets, which is why the norm toggle in the options form
+applies only to the Commodore systems (see `features/converter/README.md`).
 
-The 7800's `3900 3` (1300 symbols/line) does not factor against a confirmed
-MARIA dot-per-scanline count the way the NES and C64 derivations above do --
-the value is copied from the official preset header rather than derived
-from a sourced timing figure.
+The 7800's `4086 3`: the MARIA generator draws 341 dots per scanline at 4
+samples per dot with 2 symbols skipped at `x=0`, giving 1362 symbols per
+line; oversampled 3x = 4086 / 3, matching both official MARIA presets.
 
 ## Invariants
 
@@ -177,20 +196,26 @@ from a sourced timing figure.
   lowercase for every other system. Because RT4K parser tolerance is
   unknown, the byte-exact oracle rule forbids normalizing hex case to a
   single convention.
-- `.lmc` entries 0-7 are always `000000`; their meaning is unconfirmed
-  (presumed sync levels). They are hardcoded in `toLumacodeOrder`, never
-  exposed as an option.
-- NES color `$0D` (index 21) passes through unchanged like every other
-  entry. The official presets carry `303030` there, an error per the RT4K
-  developer (the entry is not the Everdrive cursor color), so the official
-  files are the byte-exact oracle for every entry except index 21:
-  `golden.spec.ts` asserts index 21 is the *only* difference and equals
-  the source's `000000`.
-- Index 21 = `8 + 14*0 + 13`, the arithmetic tying NES color `$0D` to its
-  LumaCode position.
-- The official `DIAG` preset is the one NES-timing preset whose index 21 is
-  not `303030` (it's `545454`, a diagnostic ramp). It has no `.pal`
-  counterpart and must never be added as a golden pair.
+- `.lmc` entries 0-7 are always `000000` in every generated file, hardcoded
+  in `toLumacodeOrder` (and the other mappers) and never exposed as an
+  option. For NES, `nes=1` identifies these words to RT4K firmware 1.82.0+
+  as the PPU emphasis command words, rendered as a color tint rather than
+  treated as palette data; for every other system their meaning stays
+  unconfirmed (presumed sync levels).
+- Every NES entry, index 21 (`$0D` = `8 + 14*0 + 13`) included, passes
+  through unchanged and matches the official files byte-for-byte;
+  `golden.spec.ts` asserts full header-and-data-line identity against the
+  official presets.
+- Index 35 (`8 + 14*1 + 13`, the `$1D` slot) is always `000000`: the
+  PPUdigitizer folds `$1D` and every `$xE`/`$xF` into raw word 35, so the
+  RT4K renders it as `$0F`, the black most games use. `toLumacodeOrder`
+  forces it regardless of the source palette; the PC-10 pair is the one
+  vendored source with a non-black `$1D`, so it is the pair that exercises
+  the fold.
+- `DIAG.lmc` is an identity ramp (index 21 `545454`, index 35 `8c8c8c`)
+  that omits `nes=1` and has no `.pal` counterpart; the generic top-level
+  `NES.lmc` has no vendored source palette producing its data either.
+  Neither is a golden pair.
 - The four NES HDR pairs' source `.pal` files have no standalone file
   counterpart; they exist only inside `pal-fixtures.ts` (canonical
   download: `rt4k_nes_hdr_v2.zip`, see `GOLDEN_PAIRS`).

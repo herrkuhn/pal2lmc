@@ -21,14 +21,7 @@
 // trailing breadth entry).
 
 import { SystemId } from '../system';
-import { FixtureSource } from './lmc-fixtures';
-
-const RT4K_FIRMWARE_1510 =
-  'https://cdn.jsdelivr.net/gh/retrotink-llc/firmware@main/RetroTINK-4K/Experimental/rt4k_1510.zip';
-const firmwareLmc = (file: string): FixtureSource => ({
-  url: RT4K_FIRMWARE_1510,
-  pathInArchive: file,
-});
+import { firmwareLmc, FixtureSource } from './lmc-fixtures';
 
 // MAME commit d066f16134121f02a2fd9716582a17f8ee66f6d5, src/mame/atari/a7800.cpp.
 export const MARIA_7800_PAL_SOURCE: FixtureSource = {
@@ -50,7 +43,7 @@ export const TIA_2600_PAL_B64 =
 
 // MiSTer-devel/Atari7800_MiSTer commit 3dc43ee77c3ff538fc34a61293caaa7cbf5b642a,
 // Palette/Trebors/NTSC/CALIBRATED/NTSC_CALIBRATED_COOL.pal. Breadth fixture
-// only -- no official .lmc exists for any Trebor palette, so this asserts
+// only -- no official .lmc preset exists for any Trebor palette, so this asserts
 // parse+convert success, never byte-identity.
 export const TREBOR_COOL_PAL_SOURCE: FixtureSource = {
   url: 'https://raw.githubusercontent.com/MiSTer-devel/Atari7800_MiSTer/3dc43ee77c3ff538fc34a61293caaa7cbf5b642a/Palette/Trebors/NTSC/CALIBRATED/NTSC_CALIBRATED_COOL.pal',
@@ -61,13 +54,16 @@ export const TREBOR_COOL_PAL_B64 =
 
 // Source: lumacode/MARIA_7800.lmc
 export const MARIA_7800_LMC_SOURCE = firmwareLmc('lumacode/MARIA_7800.lmc');
-export const MARIA_7800_LMC = `# RetroTINK LumaCode preset: Atari 7800
+export const MARIA_7800_LMC = `# RetroTINK LumaCode preset: Atari 7800 (PAL colours)
 # First line = ADC sample rate and decimation, applied when loaded.
-# Only NES timing is fully verified so far -- treat the sample rate and
-# decimation here as a starting point and adjust in the menu if needed.
-# The 7800 uses very narrow sync pulses -- sync settings may need tweaks.
+# anchor=9: MARIA word anchor measured on the reference generator 2026-09-17 (D=3, K=4: word offset 3 at every tap);
+# the NES/Intellivision value (1) does not apply to the 7800.
+# 4086/3 = 1362 symbols/line: the MARIA generator (w=341, 4 samples, two symbols skipped at x=0 every line)
+# and both official RGBtoHDMI 7800 profiles. The pre-2026-09-16 header 3900/3 (1300 symbols) drifted ~62
+# symbols per line = unusable (customer report). Colours = the MARIAdigitizer PAL table (hue rows x luma);
+# NTSC machines: MARIA_7800_NTSC.lmc. The 7800 uses very narrow sync pulses -- sync settings may need tweaks.
 
-3900 3
+4086 3 anchor=9
 
 000000,111111,222222,333333,444444,555555,666666,777777,888888,999999,aaaaaa,bbbbbb,cccccc,dddddd,eeeeee,ffffff
 001707,0e2808,1f3908,304a08,415b08,526c08,637d08,748e0d,859f1e,96b02f,a7c140,b8d251,c9e362,daf473,ebff82,fcff8e
@@ -91,11 +87,12 @@ export const MARIA_7800_LMC = `# RetroTINK LumaCode preset: Atari 7800
 export const TIA_2600_LMC_SOURCE = firmwareLmc('lumacode/TIA_2600.lmc');
 export const TIA_2600_LMC = `# RetroTINK LumaCode preset: Atari 2600
 # First line = ADC sample rate and decimation, applied when loaded.
-# Only NES timing is fully verified so far -- treat the sample rate and
-# decimation here as a starting point and adjust in the menu if needed.
+# anchor=7: TIA word anchor measured on the reference generator 2026-09-17 (D=4, K=4: taps 0/1 -> W2, tap 3 -> W1, tap 2 = edge);
+# the receiver-delay formula predicted 9, so the measured value ships.
+# Sample rate, decimation and word anchor measured on the c0pperdragon reference generator (RT4K Pro, 2026-09-17).
 # Each color appears twice (the index's lowest bit is unused).
 
-3648 4
+3648 4 anchor=7
 
 000000,000000,404040,404040,6C6C6C,6C6C6C,909090,909090,B0B0B0,B0B0B0,C8C8C8,C8C8C8,DCDCDC,DCDCDC,ECECEC,ECECEC
 444400,444400,646410,646410,848424,848424,A0A034,A0A034,B8B840,B8B840,D0D050,D0D050,E8E85C,E8E85C,FCFC68,FCFC68
@@ -115,6 +112,11 @@ export const TIA_2600_LMC = `# RetroTINK LumaCode preset: Atari 2600
 442800,442800,644818,644818,846830,846830,A08444,A08444,B89C58,B89C58,D0B46C,D0B46C,E8CC7C,E8CC7C,FCE08C,FCE08C
 `;
 
+// isOracle is true for both entries here (MARIA_7800.lmc, TIA_2600.lmc):
+// each is device-shipped and asserted byte-identical. TREBOR_COOL_PAL_B64
+// is a breadth fixture that never joins this array as an isOracle entry --
+// it has no official .lmc counterpart, so only parse+convert success is
+// asserted for it, never byte-identity.
 export interface GoldenPairTier2 {
   name: string;
   palBase64: string;
@@ -122,7 +124,6 @@ export interface GoldenPairTier2 {
   system: SystemId;
   lmcText: string;
   lmcSource: FixtureSource;
-  expectedHeader: { rate: number; dec: number };
   isOracle: boolean;
 }
 
@@ -134,7 +135,6 @@ export const GOLDEN_PAIRS_TIER2: GoldenPairTier2[] = [
     system: 'a7800',
     lmcText: MARIA_7800_LMC,
     lmcSource: MARIA_7800_LMC_SOURCE,
-    expectedHeader: { rate: 3900, dec: 3 },
     isOracle: true,
   },
   {
@@ -144,7 +144,6 @@ export const GOLDEN_PAIRS_TIER2: GoldenPairTier2[] = [
     system: 'a2600',
     lmcText: TIA_2600_LMC,
     lmcSource: TIA_2600_LMC_SOURCE,
-    expectedHeader: { rate: 3648, dec: 4 },
     isOracle: true,
   },
 ];

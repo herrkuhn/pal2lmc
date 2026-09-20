@@ -26,7 +26,11 @@ describe('toLumacodeOrder', () => {
 
     for (let row = 0; row < 4; row++) {
       for (let hue = 0; hue < 14; hue++) {
-        expect(out[8 + 14 * row + hue]).toEqual(palette[row * 16 + hue]);
+        const index = 8 + 14 * row + hue;
+        // Index 35 is covered separately below: it is always black,
+        // never the synthetic palette's source value.
+        if (index === 35) continue;
+        expect(out[index]).toEqual(palette[row * 16 + hue]);
       }
     }
 
@@ -38,6 +42,15 @@ describe('toLumacodeOrder', () => {
     for (const droppedColor of dropped) {
       expect(tail).not.toContainEqual(droppedColor);
     }
+  });
+
+  it('emits black at index 35 -- the folded $1D/$xE/$xF word -- regardless of the source $1D', () => {
+    const palette = buildSyntheticPalette();
+    const out = toLumacodeOrder(palette);
+
+    expect(out[35]).toEqual({ r: 0, g: 0, b: 0 });
+    expect(out[34]).toEqual(palette[28]);
+    expect(out[36]).toEqual(palette[32]);
   });
 
   it('hardcodes indices 0..7 to black', () => {

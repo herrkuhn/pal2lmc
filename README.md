@@ -63,9 +63,11 @@ Open `http://localhost:4200/`, then:
    Sample rate and decimation are derived per system and rarely need
    touching.
 3. **Preview and download** the generated `.lmc`, then copy it to the
-   RT4K SD card's palette directory. If the app recognizes an HDR-headroom
-   NES palette, a toggle above the preview lets you switch between HDR,
-   normalized-SDR, and file-bytes views.
+   RT4K SD card's palette directory. Generated presets use the LumaCode
+   header format of RT4K firmware 1.82.1 and are meant for that firmware
+   or later. If the app recognizes an HDR-headroom NES palette, a toggle
+   above the preview lets you switch between HDR, normalized-SDR, and
+   file-bytes views.
 
 To produce an optimized static build (deployable to any static host):
 
