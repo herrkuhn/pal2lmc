@@ -6,6 +6,11 @@
 // golden-multisystem.spec.ts can iterate it the same way golden.spec.ts
 // iterates GOLDEN_PAIRS; the expected header line comes from SYSTEMS via
 // defaultOptionsFor, not a per-fixture copy.
+//
+// Only these four presets are fixture sources. `C64_NTSC_R56A.lmc` carries
+// the same C64_NTSC data at a different sample rate an advanced-panel user
+// can already hand-edit, and its own comment marks it untested on real
+// hardware, so it is not modelled as a fixture or a system/norm variant.
 
 import { SystemId, TvNorm } from '../system';
 import { firmwareLmc, FixtureSource } from './lmc-fixtures';
@@ -13,45 +18,65 @@ import { CJAM_VPL, VICE_VPL } from './vpl-fixtures';
 
 // Source: lumacode/C64.lmc
 export const C64_LMC = `# RetroTINK LumaCode preset: Commodore 64 / C128 (PAL)
-# First line = ADC sample rate and decimation, applied when loaded.
-# Sample rate, decimation and word anchor measured on the c0pperdragon reference generator (RT4K Pro, 2026-09-17).
 # PAL machines. NTSC machines: use C64_NTSC.lmc.
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4032 4 anchor=1
+4032 4 anchor=1 syncw=296 wofs=-2
 
 000000,2a1b9d,7d202c,84258c,4c2e00,3c3c3c,646464,4fb3a5,7f410d,6351db,939393,bfd04a,339840,b44f5c,7ce587,ffffff
 `;
 
 // Source: lumacode/C64_NTSC.lmc
 export const C64_NTSC_LMC = `# RetroTINK LumaCode preset: Commodore 64 / C128 (NTSC)
-# First line = ADC sample rate and decimation, applied when loaded.
-# Sample rate, decimation and word anchor measured on the c0pperdragon reference generator (RT4K Pro, 2026-09-17).
-# NTSC machines. PAL machines: use C64.lmc. Very early NTSC boards
-# (R56A VIC-II) may need 3072 samples per line instead.
+# NTSC machines. PAL machines: use C64.lmc.
+# Very early NTSC machines (6567R56A VIC-II, 64 cycles per line): use C64_NTSC_R56A.lmc.
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-3120 3 anchor=1
+3120 3 anchor=1 syncw=222 wofs=-2
 
 000000,2a1b9d,7d202c,84258c,4c2e00,3c3c3c,646464,4fb3a5,7f410d,6351db,939393,bfd04a,339840,b44f5c,7ce587,ffffff
 `;
 
 // Source: lumacode/VIC20.lmc
 export const VIC20_LMC = `# RetroTINK LumaCode preset: Commodore VIC-20 (PAL)
-# First line = ADC sample rate and decimation, applied when loaded.
-# Sample rate, decimation and word anchor measured on the c0pperdragon reference generator (RT4K Pro, 2026-09-17).
 # PAL machines. NTSC machines: use VIC20_NTSC.lmc.
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-2272 4 anchor=4
+2272 4 anchor=4 syncw=128 wofs=6
 
 000000,0000f0,f00000,600060,ffa000,00ffff,ff00ff,00f0f0,c0a000,00a0ff,ffff00,d0d000,00a000,f08080,00ff00,ffffff
 `;
 
 // Source: lumacode/VIC20_NTSC.lmc
 export const VIC20_NTSC_LMC = `# RetroTINK LumaCode preset: Commodore VIC-20 (NTSC)
-# First line = ADC sample rate and decimation, applied when loaded.
-# Sample rate, decimation and word anchor measured on the c0pperdragon reference generator (RT4K Pro, 2026-09-17).
 # NTSC machines. PAL machines: use VIC20.lmc.
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-2080 4 anchor=0
+2080 4 anchor=0 syncw=128 wofs=-2
 
 000000,0000f0,f00000,600060,ffa000,00ffff,ff00ff,00f0f0,c0a000,00a0ff,ffff00,d0d000,00a000,f08080,00ff00,ffffff
 `;

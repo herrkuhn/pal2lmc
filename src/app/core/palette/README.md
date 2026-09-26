@@ -52,12 +52,12 @@ relative brightness up to whatever headroom the browser and display
 offer, not a colorimetric match to RT4K hardware output.
 
 `system.ts` holds the `SYSTEMS` table, the single source of per-system facts:
-header defaults per TV norm (sample rate, decimation, and the word-phase
-anchor), any protocol tokens appended after the anchor (e.g. NES's `nes=1`),
-hex case, entry count, preset comment wording, and the sampling-rate hint
-shown in the UI. `serializeLmc` reads hex case, comment wording, anchor,
-and protocol tokens from this table rather than branching on `SystemId`
-itself.
+header defaults per TV norm (sample rate, decimation, the word-phase anchor,
+and the sync width / word start pair, `syncw`/`wofs`), any protocol tokens
+appended after the anchor (e.g. NES's `nes=1`), hex case, entry count, preset
+comment wording, and the sampling-rate hint shown in the UI. `serializeLmc`
+reads hex case, comment wording, anchor, protocol tokens, `syncw`, and
+`wofs` from this table rather than branching on `SystemId` itself.
 
 `fixtures/` holds the golden-test corpus, base64-embedded rather than loaded
 as test assets: `pal-fixtures.ts` holds the eleven NES source `.pal`
@@ -65,8 +65,10 @@ files (seven FBX-era palettes, four NES HDR palettes),
 `vpl-fixtures.ts` the two VICE sources, and
 `atari-fixtures.ts` the constructed 7800 and 2600 source palettes
 (MAME `a7800p_colors` extracted by script, a Wikipedia 2600 table with
-duplicated adjacent pairs -- see Invariants). `lmc-fixtures.ts` and
-`lmc-multisystem-fixtures.ts` hold the matching official `.lmc` presets;
+duplicated adjacent pairs -- see Invariants), including the matching
+official 7800 and 2600 `.lmc` presets. `lmc-fixtures.ts` and
+`lmc-multisystem-fixtures.ts` hold the matching official NES and
+C64/VIC-20 `.lmc` presets respectively;
 `spec-helpers.ts` holds shared test utilities (`dataLinesOf` and friends)
 used by both golden spec files. Each fixture pair records the canonical
 public download (URL + path in archive, or extraction commit hash for the
@@ -121,7 +123,7 @@ they are the correctness gate.
   asset loading in the Vitest/jsdom test runner; fixtures are generated
   mechanically from the canonical downloads recorded in each
   `FixtureSource`, never hand-typed. Every `.lmc` fixture text is copied
-  byte-exact from the RT4K firmware 1.82.1 release archive, the origin of
+  byte-exact from the RT4K firmware 1.87.3 release archive, the origin of
   the golden corpus.
 - **`toLumacodeOrder` never iterates hue 14 or 15.** Direct output-array
   generation (loop bounds 0..13) makes emitting a dropped `$xE`/`$xF` column
@@ -135,7 +137,7 @@ The `.lmc` first line is derived from console timing, not a free choice:
 samples per pixel. The RT4K ADC oversamples each lumacode symbol
 `decimation`-fold, and its sample rate is capped at 4095 (hence the UI's
 1-4095 range). For the NES: 341 dots per scanline x 3 lumacode samples per
-pixel x 4 = 4092. All 33 official presets surveyed obey this formula and
+pixel x 4 = 4092. All 30 official presets surveyed obey this formula and
 all 13 NES-timing presets use exactly `4092 4`; the value depends on video chip
 and TV norm only, never on palette content. The UI therefore treats it as
 a derived default in an advanced section, not a required input.
@@ -145,36 +147,43 @@ c0pperdragon's LumaCode wiki, PPUdigitizer page (3 samples per NES pixel,
 2 per C64 pixel); consolemods.org RT4K wiki (analog ADC tables corroborate
 the dot counts: NES 3410/10 -> 341, C64 PAL 2016/4 -> 504).
 
-The header line is `rate dec anchor=N` followed by any protocol tokens for
-the system, single-space separated (e.g. `4092 4 anchor=1 nes=1` for NES).
-`anchor` is a word-phase constant measured per system on the reference
-generator, norm-keyed only for the VIC-20 (PAL `4`, NTSC `0`); every other
-system's anchor is norm-invariant. The token is emitted even when its value
-is `0`: the official VIC-20 NTSC and MSX/Colecovision presets spell
-`anchor=0` explicitly, and byte-identity with the official files is the
-correctness oracle, so a zero anchor is written out rather than omitted.
-`nes=1` is the NES protocol token: it makes RT4K firmware 1.82.0 and later
-render the PPU emphasis words (raw 0-7) as a color tint, while earlier
-firmware ignores it. Generated presets reproduce the header grammar of RT4K
-firmware 1.82.1 and target that firmware or later; there is no legacy
-header mode, and a user on earlier firmware can hand-trim the trailing
-tokens, since the first two numbers alone form a valid pre-1.82 header.
+The header line is `rate dec anchor=N`, then any protocol tokens for the
+system, then `syncw=N wofs=M`, single-space separated (e.g.
+`4092 4 anchor=1 nes=1 syncw=300 wofs=10` for NES). `anchor` is a word-phase
+constant measured per system on the reference generator, norm-keyed only for
+the VIC-20 (PAL `4`, NTSC `0`); every other system's anchor is norm-invariant.
+`syncw` and `wofs` are the system's sync width and word start relative to the
+sync, measured on c0pperdragon's LumaCode reference generator -- the RT4K
+uses them to align words automatically each time it locks, falling back to
+`anchor` if that measurement fails. Every token is emitted even when zero or
+negative, because byte-identity with the official files is the correctness
+oracle: the official VIC-20 NTSC preset spells `anchor=0` explicitly, and
+several presets spell `wofs=-2`. `nes=1` is the NES protocol token: firmware
+that recognizes it renders the PPU emphasis words (raw 0-7) as a color
+tint, while firmware that does not recognize the token ignores it. Generated presets reproduce
+the header grammar of RT4K firmware 1.87.3 and target that firmware or
+later, with no legacy header mode; the official presets state that older
+firmware ignores `syncw` and `wofs`, so the files load there as well, and a
+user who wants the shorter header on such firmware can hand-trim the two
+trailing tokens.
 
 Per-system header defaults, from `system.ts`'s `SYSTEMS` table:
 
-| System  | PAL                     | NTSC                     |
-| ------- | ----------------------- | ------------------------ |
-| NES     | `4092 4 anchor=1 nes=1` | `4092 4 anchor=1 nes=1`  |
-| C64     | `4032 4 anchor=1`       | `3120 3 anchor=1`        |
-| VIC-20  | `2272 4 anchor=4`       | `2080 4 anchor=0`        |
-| 7800    | `4086 3 anchor=9`       | `4086 3 anchor=9`        |
-| 2600    | `3648 4 anchor=7`       | `3648 4 anchor=7`        |
+| System  | PAL                                        | NTSC                                       |
+| ------- | ------------------------------------------- | ------------------------------------------- |
+| NES     | `4092 4 anchor=1 nes=1 syncw=300 wofs=10`   | `4092 4 anchor=1 nes=1 syncw=300 wofs=10`   |
+| C64     | `4032 4 anchor=1 syncw=296 wofs=-2`         | `3120 3 anchor=1 syncw=222 wofs=-2`         |
+| VIC-20  | `2272 4 anchor=4 syncw=128 wofs=6`          | `2080 4 anchor=0 syncw=128 wofs=-2`         |
+| 7800    | `4086 3 anchor=9 syncw=126 wofs=4`          | `4086 3 anchor=9 syncw=126 wofs=4`          |
+| 2600    | `3648 4 anchor=7 syncw=224 wofs=-2`         | `3648 4 anchor=7 syncw=224 wofs=-2`         |
 
-TV norm changes rate and decimation for both C64 and VIC-20, and also
-changes the VIC-20's anchor (`4` PAL / `0` NTSC); the C64's anchor stays
-`1` for both norms. The 7800 and 2600 headers are entirely norm-invariant
-in the official presets, which is why the norm toggle in the options form
-applies only to the Commodore systems (see `features/converter/README.md`).
+TV norm changes rate and decimation for both Commodore systems, the C64's
+`syncw` (`296` PAL / `222` NTSC), and the VIC-20's `anchor` and `wofs` (`4`
+and `6` PAL / `0` and `-2` NTSC); the C64's `anchor`/`wofs` and the VIC-20's
+`syncw` stay fixed across norms. The 7800 and 2600 headers are entirely
+norm-invariant in the official presets, which is why the norm toggle in the
+options form applies only to the Commodore systems (see
+`features/converter/README.md`).
 
 The 7800's `4086 3`: the MARIA generator draws 341 dots per scanline at 4
 samples per dot with 2 symbols skipped at `x=0`, giving 1362 symbols per
@@ -198,10 +207,10 @@ line; oversampled 3x = 4086 / 3, matching both official MARIA presets.
   single convention.
 - `.lmc` entries 0-7 are always `000000` in every generated file, hardcoded
   in `toLumacodeOrder` (and the other mappers) and never exposed as an
-  option. For NES, `nes=1` identifies these words to RT4K firmware 1.82.0+
-  as the PPU emphasis command words, rendered as a color tint rather than
-  treated as palette data; for every other system their meaning stays
-  unconfirmed (presumed sync levels).
+  option. For NES, `nes=1` identifies these words to firmware that
+  recognizes the token as the PPU emphasis command words, rendered as a
+  color tint rather than treated as palette data; for every other system
+  their meaning stays unconfirmed (presumed sync levels).
 - Every NES entry, index 21 (`$0D` = `8 + 14*0 + 13`) included, passes
   through unchanged and matches the official files byte-for-byte;
   `golden.spec.ts` asserts full header-and-data-line identity against the
@@ -255,3 +264,14 @@ line; oversampled 3x = 4086 / 3, matching both official MARIA presets.
   changes only (annotations, narrowing, satisfies); byte-identical
   output in golden.spec.ts and golden-multisystem.spec.ts gates every
   such fix.
+- Every `.lmc` fixture template literal carries no CR, no backtick, no
+  `${`, and no backslash: each embeds an official preset's bytes verbatim
+  inside a JavaScript template literal, and any one of those four byte
+  sequences would change the embedded string, terminate the literal
+  early, or open an unwanted interpolation, so the fixture would silently
+  diverge from the archive it is supposed to reproduce while every
+  line-based check still passes.
+- Every `.lmc` fixture text is a mechanical whole-file copy of its
+  source in the corpus archive: a one-off script writes the archive
+  bytes into the template literal unedited, comments and all, so no
+  fixture text here is ever hand-typed.

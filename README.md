@@ -64,10 +64,13 @@ Open `http://localhost:4200/`, then:
    touching.
 3. **Preview and download** the generated `.lmc`, then copy it to the
    RT4K SD card's palette directory. Generated presets use the LumaCode
-   header format of RT4K firmware 1.82.1 and are meant for that firmware
-   or later. If the app recognizes an HDR-headroom NES palette, a toggle
-   above the preview lets you switch between HDR, normalized-SDR, and
-   file-bytes views.
+   header format of RT4K firmware 1.87.3 and are meant for that firmware
+   or later; older firmware still loads the same file, ignoring the
+   header tokens it does not recognize, and you can hand-trim those
+   trailing tokens yourself if you want a shorter header for such
+   firmware. If the app recognizes an HDR-headroom NES palette, a
+   toggle above the preview lets you switch between HDR, normalized-SDR,
+   and file-bytes views.
 
 To produce an optimized static build (deployable to any static host):
 

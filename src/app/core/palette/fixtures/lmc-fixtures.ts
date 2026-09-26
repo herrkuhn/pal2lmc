@@ -5,13 +5,24 @@
 //
 // PC10_LMC and SONY_CXA_LMC are sourced from the corpus's top level; the other
 // nine pairs come from lumacode/NES/. DIAG.lmc is an identity ramp (index 21
-// 545454, index 35 8c8c8c, anchor=1 without nes=1) with no .pal counterpart and
-// serves only as a format reference, never a golden pair (spec S8). The generic
-// top-level NES.lmc's data lines match none of the eleven vendored source
-// palettes, so no round-trip can be asserted for it either. The four NES HDR
-// variants ARE golden pairs -- their source .pal files come from
-// rt4k_nes_hdr_v2.zip in the RetroTINK-LLC firmware repo (see GOLDEN_PAIRS
-// sources below), not fbx_pal/.
+// 545454, index 35 8c8c8c, anchor=1 syncw=300 wofs=10 without nes=1) with no
+// .pal counterpart and serves only as a format reference, never a golden pair
+// (spec S8). The generic top-level NES.lmc's data lines match none of the
+// eleven vendored source palettes, so no round-trip can be asserted for it
+// either. The four NES HDR variants ARE golden pairs -- their source .pal
+// files come from rt4k_nes_hdr_v2.zip in the RetroTINK-LLC firmware repo (see
+// GOLDEN_PAIRS sources below), not fbx_pal/.
+//
+// Every fixture literal below carries no CR, no backtick, no `${`, and no
+// backslash: the official preset text sits verbatim inside a JavaScript
+// template literal, and any one of those four byte sequences would change
+// the embedded string, terminate the literal early, or open an unwanted
+// interpolation -- silently diverging the fixture from the archive bytes
+// it reproduces while every line-based check still passes.
+//
+// Each literal is a mechanical whole-file copy of its source .lmc: a
+// one-off script writes the archive bytes into the template literal
+// unedited, comments and all, so no fixture text here is ever hand-typed.
 import {
   COMPOSITE_DIRECT_FBX_PAL_B64,
   NES_CLASSIC_FBX_PAL_B64,
@@ -28,15 +39,19 @@ import {
 
 // Source: lumacode/NES/Composite Direct (FBX).lmc
 export const COMPOSITE_DIRECT_FBX_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- Composite Direct (FBX) palette
-# anchor=1: NES word anchor of the tap -> word-offset rule, measured on the reference generator 2026-09-16
-# (identical at the 9/16/35 MHz filters; see lumacode_configs/LUMACODE_UNIVERSE.md). nes=1: NES protocol --
-# the 1.82.0 FPGA articles render the PPU emphasis commands (words 0..7) as a colour tint; older articles ignore it.
-# First line = ADC sample rate and decimation, applied when loaded.
 # Palette by FirebrandX: https://www.firebrandx.com/nespalette.html
 # Raw 0..7 are the PPUdigitizer emphasis commands and raw 21 is $0D (blacker than black, also the border
 # word): all black. Raw 35 renders $1D and every $xE/$xF black (the digitizer folds them together).
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# nes=1: NES protocol. The emphasis commands (raw 0..7) tint the pixels after them (PPU colour emphasis).
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4092 4 anchor=1 nes=1
+4092 4 anchor=1 nes=1 syncw=300 wofs=10
 
 000000,000000,000000,000000,000000,000000,000000,000000,656565,00127d,18008e,360082,56005d,5a0018,4f0500,381900
 1d3100,003d00,004100,003b17,002e55,000000,afafaf,194ec8,472fe3,6b1fd7,931bae,9e1a5e,993200,7b4b00,5b6700,267a00
@@ -46,15 +61,19 @@ export const COMPOSITE_DIRECT_FBX_LMC = `# RetroTINK LumaCode preset: NES / Fami
 
 // Source: lumacode/NES/NES Classic (FBX).lmc
 export const NES_CLASSIC_FBX_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- NES Classic (FBX) palette
-# anchor=1: NES word anchor of the tap -> word-offset rule, measured on the reference generator 2026-09-16
-# (identical at the 9/16/35 MHz filters; see lumacode_configs/LUMACODE_UNIVERSE.md). nes=1: NES protocol --
-# the 1.82.0 FPGA articles render the PPU emphasis commands (words 0..7) as a colour tint; older articles ignore it.
-# First line = ADC sample rate and decimation, applied when loaded.
 # Palette by FirebrandX: https://www.firebrandx.com/nespalette.html
 # Raw 0..7 are the PPUdigitizer emphasis commands and raw 21 is $0D (blacker than black, also the border
 # word): all black. Raw 35 renders $1D and every $xE/$xF black (the digitizer folds them together).
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# nes=1: NES protocol. The emphasis commands (raw 0..7) tint the pixels after them (PPU colour emphasis).
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4092 4 anchor=1 nes=1
+4092 4 anchor=1 nes=1 syncw=300 wofs=10
 
 000000,000000,000000,000000,000000,000000,000000,000000,616161,000088,1f0d99,371379,561260,5d0010,520e00,3a2308
 21350c,0d410e,174417,003a1f,002f57,000000,aaaaaa,0d4dc4,4b24de,6912cf,9014ad,9d1c48,923404,735005,5d6913,167a11
@@ -64,16 +83,20 @@ export const NES_CLASSIC_FBX_LMC = `# RetroTINK LumaCode preset: NES / Famicom -
 
 // Source: lumacode/PC-10.lmc
 export const PC10_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- PC-10 palette
-# anchor=1: NES word anchor of the tap -> word-offset rule, measured on the reference generator 2026-09-16
-# (identical at the 9/16/35 MHz filters; see lumacode_configs/LUMACODE_UNIVERSE.md). nes=1: NES protocol --
-# the 1.82.0 FPGA articles render the PPU emphasis commands (words 0..7) as a colour tint; older articles ignore it.
-# First line = ADC sample rate and decimation, applied when loaded.
 # Palette by FirebrandX: https://www.firebrandx.com/nespalette.html
 # Raw 0..7 are the PPUdigitizer emphasis commands and raw 21 is $0D (blacker than black, also the border
 # word): all black. Raw 35 renders $1D and every $xE/$xF black (the digitizer folds them together).
 # PC-10 source $1D = 242424; raw 35 is kept black because it also carries $0F, the black most games use.
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# nes=1: NES protocol. The emphasis commands (raw 0..7) tint the pixels after them (PPU colour emphasis).
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4092 4 anchor=1 nes=1
+4092 4 anchor=1 nes=1 syncw=300 wofs=10
 
 000000,000000,000000,000000,000000,000000,000000,000000,6d6d6d,002492,0000db,6d49db,92006d,b6006d,b62400,924900
 6d4900,244900,006d24,009200,004949,000000,b6b6b6,006ddb,0049ff,9200ff,b600ff,ff0092,ff0000,db6d00,926d00,249200
@@ -83,15 +106,19 @@ export const PC10_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- PC-10 pal
 
 // Source: lumacode/NES/PVM Style D93 (FBX).lmc
 export const PVM_STYLE_D93_FBX_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- PVM Style D93 (FBX) palette
-# anchor=1: NES word anchor of the tap -> word-offset rule, measured on the reference generator 2026-09-16
-# (identical at the 9/16/35 MHz filters; see lumacode_configs/LUMACODE_UNIVERSE.md). nes=1: NES protocol --
-# the 1.82.0 FPGA articles render the PPU emphasis commands (words 0..7) as a colour tint; older articles ignore it.
-# First line = ADC sample rate and decimation, applied when loaded.
 # Palette by FirebrandX: https://www.firebrandx.com/nespalette.html
 # Raw 0..7 are the PPUdigitizer emphasis commands and raw 21 is $0D (blacker than black, also the border
 # word): all black. Raw 35 renders $1D and every $xE/$xF black (the digitizer folds them together).
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# nes=1: NES protocol. The emphasis commands (raw 0..7) tint the pixels after them (PPU colour emphasis).
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4092 4 anchor=1 nes=1
+4092 4 anchor=1 nes=1 syncw=300 wofs=10
 
 000000,000000,000000,000000,000000,000000,000000,000000,696b63,001774,1e0087,340073,560057,5e0013,531a00,3b2400
 243000,063a00,003f00,003b1e,00334e,000000,b9bbb3,1453b9,4d2cda,671ede,98189c,9d2344,a03e00,8d5500,656d00,2c7900
@@ -101,15 +128,19 @@ export const PVM_STYLE_D93_FBX_LMC = `# RetroTINK LumaCode preset: NES / Famicom
 
 // Source: lumacode/NES/Smooth (FBX).lmc
 export const SMOOTH_FBX_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- Smooth (FBX) palette
-# anchor=1: NES word anchor of the tap -> word-offset rule, measured on the reference generator 2026-09-16
-# (identical at the 9/16/35 MHz filters; see lumacode_configs/LUMACODE_UNIVERSE.md). nes=1: NES protocol --
-# the 1.82.0 FPGA articles render the PPU emphasis commands (words 0..7) as a colour tint; older articles ignore it.
-# First line = ADC sample rate and decimation, applied when loaded.
 # Palette by FirebrandX: https://www.firebrandx.com/nespalette.html
 # Raw 0..7 are the PPUdigitizer emphasis commands and raw 21 is $0D (blacker than black, also the border
 # word): all black. Raw 35 renders $1D and every $xE/$xF black (the digitizer folds them together).
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# nes=1: NES protocol. The emphasis commands (raw 0..7) tint the pixels after them (PPU colour emphasis).
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4092 4 anchor=1 nes=1
+4092 4 anchor=1 nes=1 syncw=300 wofs=10
 
 000000,000000,000000,000000,000000,000000,000000,000000,6a6d6a,001380,1e008a,39007a,550056,5a0018,4f1000,3d1c00
 253200,003d00,004000,003924,002e55,000000,b9bcb9,1850c7,4b30e3,7322d6,951fa9,9d285c,983700,7f4c00,5e6400,227700
@@ -119,15 +150,19 @@ export const SMOOTH_FBX_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- Smo
 
 // Source: lumacode/Sony CXA.lmc
 export const SONY_CXA_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- Sony CXA palette
-# anchor=1: NES word anchor of the tap -> word-offset rule, measured on the reference generator 2026-09-16
-# (identical at the 9/16/35 MHz filters; see lumacode_configs/LUMACODE_UNIVERSE.md). nes=1: NES protocol --
-# the 1.82.0 FPGA articles render the PPU emphasis commands (words 0..7) as a colour tint; older articles ignore it.
-# First line = ADC sample rate and decimation, applied when loaded.
 # Palette by FirebrandX: https://www.firebrandx.com/nespalette.html
 # Raw 0..7 are the PPUdigitizer emphasis commands and raw 21 is $0D (blacker than black, also the border
 # word): all black. Raw 35 renders $1D and every $xE/$xF black (the digitizer folds them together).
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# nes=1: NES protocol. The emphasis commands (raw 0..7) tint the pixels after them (PPU colour emphasis).
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4092 4 anchor=1 nes=1
+4092 4 anchor=1 nes=1 syncw=300 wofs=10
 
 000000,000000,000000,000000,000000,000000,000000,000000,585858,00238c,00139b,2d0585,5d0052,7a0017,7a0800,5f1800
 352a00,093900,003f00,003c22,00325d,000000,a1a1a1,0053ee,153cfe,6028e4,a91d98,d41e41,d22c00,aa4400,6c5e00,2d7300
@@ -137,15 +172,19 @@ export const SONY_CXA_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- Sony 
 
 // Source: lumacode/NES/Wavebeam.lmc
 export const WAVEBEAM_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- Wavebeam palette
-# anchor=1: NES word anchor of the tap -> word-offset rule, measured on the reference generator 2026-09-16
-# (identical at the 9/16/35 MHz filters; see lumacode_configs/LUMACODE_UNIVERSE.md). nes=1: NES protocol --
-# the 1.82.0 FPGA articles render the PPU emphasis commands (words 0..7) as a colour tint; older articles ignore it.
-# First line = ADC sample rate and decimation, applied when loaded.
 # Palette by FirebrandX: https://www.firebrandx.com/nespalette.html
 # Raw 0..7 are the PPUdigitizer emphasis commands and raw 21 is $0D (blacker than black, also the border
 # word): all black. Raw 35 renders $1D and every $xE/$xF black (the digitizer folds them together).
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# nes=1: NES protocol. The emphasis commands (raw 0..7) tint the pixels after them (PPU colour emphasis).
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4092 4 anchor=1 nes=1
+4092 4 anchor=1 nes=1 syncw=300 wofs=10
 
 000000,000000,000000,000000,000000,000000,000000,000000,6b6b6b,001b88,21009a,40008c,600067,64001e,590800,481600
 283600,004500,004908,00421d,003659,000000,b4b4b4,1555d3,4337ef,7425df,9c19b9,ac0f64,aa2c00,8a4b00,666b00,218300
@@ -155,16 +194,20 @@ export const WAVEBEAM_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- Waveb
 
 // Source: lumacode/NES/NES HDR Raw.lmc
 export const NES_HDR_RAW_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- NES HDR Raw palette
-# anchor=1: NES word anchor of the tap -> word-offset rule, measured on the reference generator 2026-09-16
-# (identical at the 9/16/35 MHz filters; see lumacode_configs/LUMACODE_UNIVERSE.md). nes=1: NES protocol --
-# the 1.82.0 FPGA articles render the PPU emphasis commands (words 0..7) as a colour tint; older articles ignore it.
-# First line = ADC sample rate and decimation, applied when loaded.
 # NES HDR palette by Mike Chi / RetroTINK:
 # https://github.com/RetroTINK-LLC/firmware/tree/main/misc/NES%20HDR%20Palettes
 # Raw 0..7 are the PPUdigitizer emphasis commands and raw 21 is $0D (blacker than black, also the border
 # word): all black. Raw 35 renders $1D and every $xE/$xF black (the digitizer folds them together).
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# nes=1: NES protocol. The emphasis commands (raw 0..7) tint the pixels after them (PPU colour emphasis).
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4092 4 anchor=1 nes=1
+4092 4 anchor=1 nes=1 syncw=300 wofs=10
 
 000000,000000,000000,000000,000000,000000,000000,000000,393939,050f71,10097f,2e0871,430547,4c040b,430400,2c0f00
 0e2400,043000,053400,042e0b,042047,000000,6c6c6c,1231b3,3420c6,5b17b3,79127e,830f30,771d00,5a3500,334d00,135f00
@@ -174,16 +217,20 @@ export const NES_HDR_RAW_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- NE
 
 // Source: lumacode/NES/NES HDR Soft Clamp.lmc
 export const NES_HDR_SOFT_CLAMP_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- NES HDR Soft Clamp palette
-# anchor=1: NES word anchor of the tap -> word-offset rule, measured on the reference generator 2026-09-16
-# (identical at the 9/16/35 MHz filters; see lumacode_configs/LUMACODE_UNIVERSE.md). nes=1: NES protocol --
-# the 1.82.0 FPGA articles render the PPU emphasis commands (words 0..7) as a colour tint; older articles ignore it.
-# First line = ADC sample rate and decimation, applied when loaded.
 # NES HDR palette by Mike Chi / RetroTINK:
 # https://github.com/RetroTINK-LLC/firmware/tree/main/misc/NES%20HDR%20Palettes
 # Raw 0..7 are the PPUdigitizer emphasis commands and raw 21 is $0D (blacker than black, also the border
 # word): all black. Raw 35 renders $1D and every $xE/$xF black (the digitizer folds them together).
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# nes=1: NES protocol. The emphasis commands (raw 0..7) tint the pixels after them (PPU colour emphasis).
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4092 4 anchor=1 nes=1
+4092 4 anchor=1 nes=1 syncw=300 wofs=10
 
 000000,000000,000000,000000,000000,000000,000000,000000,3f3f3f,06117d,120a8d,33087d,4b064f,55040d,4b0400,311100
 102700,043600,063a00,04330d,04234f,000000,787878,1437c2,3a23d2,6519c2,86148c,911136,842000,643b00,385600,156a00
@@ -193,16 +240,20 @@ export const NES_HDR_SOFT_CLAMP_LMC = `# RetroTINK LumaCode preset: NES / Famico
 
 // Source: lumacode/NES/NES HDR Medium Clamp.lmc
 export const NES_HDR_MEDIUM_CLAMP_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- NES HDR Medium Clamp palette
-# anchor=1: NES word anchor of the tap -> word-offset rule, measured on the reference generator 2026-09-16
-# (identical at the 9/16/35 MHz filters; see lumacode_configs/LUMACODE_UNIVERSE.md). nes=1: NES protocol --
-# the 1.82.0 FPGA articles render the PPU emphasis commands (words 0..7) as a colour tint; older articles ignore it.
-# First line = ADC sample rate and decimation, applied when loaded.
 # NES HDR palette by Mike Chi / RetroTINK:
 # https://github.com/RetroTINK-LLC/firmware/tree/main/misc/NES%20HDR%20Palettes
 # Raw 0..7 are the PPUdigitizer emphasis commands and raw 21 is $0D (blacker than black, also the border
 # word): all black. Raw 35 renders $1D and every $xE/$xF black (the digitizer folds them together).
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# nes=1: NES protocol. The emphasis commands (raw 0..7) tint the pixels after them (PPU colour emphasis).
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4092 4 anchor=1 nes=1
+4092 4 anchor=1 nes=1 syncw=300 wofs=10
 
 000000,000000,000000,000000,000000,000000,000000,000000,454545,061288,140b99,370988,510656,5c050e,510500,361200
 112b00,053a00,063f00,05370e,052656,000000,828282,153ccf,3f26dc,6e1ccf,911597,9e123a,902300,6d4000,3d5d00,177300
@@ -212,16 +263,20 @@ export const NES_HDR_MEDIUM_CLAMP_LMC = `# RetroTINK LumaCode preset: NES / Fami
 
 // Source: lumacode/NES/NES HDR Sony Decoder.lmc
 export const NES_HDR_SONY_DECODER_LMC = `# RetroTINK LumaCode preset: NES / Famicom -- NES HDR Sony Decoder palette
-# anchor=1: NES word anchor of the tap -> word-offset rule, measured on the reference generator 2026-09-16
-# (identical at the 9/16/35 MHz filters; see lumacode_configs/LUMACODE_UNIVERSE.md). nes=1: NES protocol --
-# the 1.82.0 FPGA articles render the PPU emphasis commands (words 0..7) as a colour tint; older articles ignore it.
-# First line = ADC sample rate and decimation, applied when loaded.
 # NES HDR palette by Mike Chi / RetroTINK:
 # https://github.com/RetroTINK-LLC/firmware/tree/main/misc/NES%20HDR%20Palettes
 # Raw 0..7 are the PPUdigitizer emphasis commands and raw 21 is $0D (blacker than black, also the border
 # word): all black. Raw 35 renders $1D and every $xE/$xF black (the digitizer folds them together).
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# nes=1: NES protocol. The emphasis commands (raw 0..7) tint the pixels after them (PPU colour emphasis).
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4092 4 anchor=1 nes=1
+4092 4 anchor=1 nes=1 syncw=300 wofs=10
 
 000000,000000,000000,000000,000000,000000,000000,000000,494949,061b6b,1b1377,2e0f6b,3d0c49,430d1b,3d1300,2e1b00
 1b2100,062700,002800,00271b,002249,000000,7f7f7f,2440ad,4036bf,5b30ad,6e2d7f,762e40,6e3600,5b3f00,404900,245100
@@ -231,7 +286,7 @@ export const NES_HDR_SONY_DECODER_LMC = `# RetroTINK LumaCode preset: NES / Fami
 
 // Canonical public download for a fixture file: enough to re-fetch it if the
 // base64/text embedding is ever replaced by download-on-init (fetch url,
-// extract pathInArchive). Verified live 2026-09-18.
+// extract pathInArchive).
 export interface FixtureSource {
   /** Direct download URL of the archive containing the file. */
   url: string;
@@ -249,12 +304,12 @@ const FBX_PAL_BUNDLE = 'https://www.firebrandx.com/downloads/Novemeber-2017-Pale
 const NES_HDR_PAL_BUNDLE =
   'https://github.com/RetroTINK-LLC/firmware/raw/main/misc/NES%20HDR%20Palettes/rt4k_nes_hdr_v2.zip';
 
-// RT4K experimental firmware 1.82.1 SD-card bundle, the origin of every
+// RT4K experimental firmware 1.87.3 SD-card bundle, the origin of every
 // official .lmc preset fixture (its lumacode/ tree is byte-identical to the
 // vendored lumacode/ corpus). Linked from
 // https://retrotink-llc.github.io/firmware/4k-experimental.html.
-const RT4K_FIRMWARE_1821 =
-  'https://cdn.jsdelivr.net/gh/retrotink-llc/firmware@main/RetroTINK-4K/Experimental/rt4k_1821.zip';
+const RT4K_FIRMWARE_1873 =
+  'https://cdn.jsdelivr.net/gh/retrotink-llc/firmware@main/RetroTINK-4K/Experimental/rt4k_1873.zip';
 
 const fbxPal = (file: string): FixtureSource => ({ url: FBX_PAL_BUNDLE, pathInArchive: file });
 const hdrPal = (file: string): FixtureSource => ({ url: NES_HDR_PAL_BUNDLE, pathInArchive: file });
@@ -263,7 +318,7 @@ const hdrPal = (file: string): FixtureSource => ({ url: NES_HDR_PAL_BUNDLE, path
 // is the in-archive path under the firmware zip's lumacode/ tree, e.g.
 // 'lumacode/NES/Wavebeam.lmc' or 'lumacode/PC-10.lmc'.
 export const firmwareLmc = (file: string): FixtureSource => ({
-  url: RT4K_FIRMWARE_1821,
+  url: RT4K_FIRMWARE_1873,
   pathInArchive: file,
 });
 

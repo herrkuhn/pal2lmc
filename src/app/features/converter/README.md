@@ -140,8 +140,8 @@ jsdom-testable without a real GPU.
   holding sample rate, integer 1-4095, decimation, positive integer with a
   non-blocking warning outside 1-8, and a `samplingHint()` computed from
   `SYSTEMS[currentSystem()].samplingHint`, which names the fixed header
-  tokens (anchor and, for NES, `nes=1`) the selected system emits. Sample rate
-  and decimation are intentionally not `Validators.required` -- they are
+  tokens (`anchor`, `syncw`, `wofs`, and, for NES, `nes=1`) the selected
+  system emits. Sample rate and decimation are intentionally not `Validators.required` -- they are
   constants derived from console timing (see `core/palette/README.md`), so no
   required asterisk is shown; the integer/range validators still gate emission.
   Emits `optionsChange` only while the form is valid (`form.valueChanges`
@@ -267,9 +267,24 @@ verified by manual/recorded smoke rather than the automated suite.
   dirty-tracking shape already used for the comment textarea -- silently
   overwriting a user-set header value on a switch would lose work the
   same way overwriting an in-progress comment edit would. The header
-  line's anchor and protocol tokens are derived from `SYSTEMS` for the
-  selected system/norm, not form fields, so a hand-edited sample rate
-  still ships the system's anchor.
+  line's anchor, protocol tokens, syncw, and wofs are derived from
+  `SYSTEMS` for the selected system/norm, not form fields, so a
+  hand-edited sample rate still ships the system's measured tokens.
+- **`samplingHint()` duplicates the header tokens on purpose, not by
+  oversight.** The hint is prose explaining the rate/decimation formula in
+  system-specific words, so the closing sentence's token list is
+  hand-written text, not a generated string; nothing in this component or
+  its spec re-derives it from `SYSTEMS`. The core layer's serializer spec
+  guards the duplication instead, by asserting each system/norm row's
+  `samplingHint` contains the same `anchor=`/`syncw=`/`wofs=` tokens as
+  its expected header line, so a value edited in `SYSTEMS` without
+  updating the hint fails there before this component ships stale text.
+- **`syncw`/`wofs` are `HeaderDefaults` numbers, not `LmcOptions` fields
+  or `protocolTokens` strings.** They are per-system measured constants
+  like `anchor`, so keeping them out of the reactive form means a
+  hand-edited sample rate still ships the right tokens; encoding them as
+  `protocolTokens` strings would lose the numeric values the
+  sampling-hint text and README header table both need to read back out.
 - **768-byte detection is a heuristic with a user override, not a modal.**
   Because the Atari mapping is identity for both 7800 and 2600,
   misdetecting a 768-byte source only changes header, hex case, and

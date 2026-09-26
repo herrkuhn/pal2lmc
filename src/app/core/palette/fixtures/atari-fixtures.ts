@@ -19,6 +19,11 @@
 // preset exists for any Trebor palette, so its golden entry asserts only
 // parse+convert success, never byte-identity (see GOLDEN_PAIRS_TIER2's
 // trailing breadth entry).
+//
+// Only MARIA_7800.lmc and TIA_2600.lmc are fixture sources here: the 7800
+// and 2600 headers carry the same anchor, syncw, and wofs for both TV
+// norms, so a norm-specific counterpart would assert the exact header
+// string this file's two literals already pin.
 
 import { SystemId } from '../system';
 import { firmwareLmc, FixtureSource } from './lmc-fixtures';
@@ -55,15 +60,20 @@ export const TREBOR_COOL_PAL_B64 =
 // Source: lumacode/MARIA_7800.lmc
 export const MARIA_7800_LMC_SOURCE = firmwareLmc('lumacode/MARIA_7800.lmc');
 export const MARIA_7800_LMC = `# RetroTINK LumaCode preset: Atari 7800 (PAL colours)
-# First line = ADC sample rate and decimation, applied when loaded.
-# anchor=9: MARIA word anchor measured on the reference generator 2026-09-17 (D=3, K=4: word offset 3 at every tap);
-# the NES/Intellivision value (1) does not apply to the 7800.
-# 4086/3 = 1362 symbols/line: the MARIA generator (w=341, 4 samples, two symbols skipped at x=0 every line)
-# and both official RGBtoHDMI 7800 profiles. The pre-2026-09-16 header 3900/3 (1300 symbols) drifted ~62
-# symbols per line = unusable (customer report). Colours = the MARIAdigitizer PAL table (hue rows x luma);
-# NTSC machines: MARIA_7800_NTSC.lmc. The 7800 uses very narrow sync pulses -- sync settings may need tweaks.
+# 4086/3 = 1362 symbols per line, matching the LumaCode reference generator and both official
+# RGBtoHDMI 7800 profiles. Earlier versions of this file used 3900/3 (1300 symbols per line), which
+# drifts across the line and does not work.
+# Colours = the MARIAdigitizer PAL table (hue rows x luma). NTSC machines: use MARIA_7800_NTSC.lmc.
+# The 7800 uses very narrow sync pulses; syncw= below is set for them.
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-4086 3 anchor=9
+4086 3 anchor=9 syncw=126 wofs=4
 
 000000,111111,222222,333333,444444,555555,666666,777777,888888,999999,aaaaaa,bbbbbb,cccccc,dddddd,eeeeee,ffffff
 001707,0e2808,1f3908,304a08,415b08,526c08,637d08,748e0d,859f1e,96b02f,a7c140,b8d251,c9e362,daf473,ebff82,fcff8e
@@ -85,14 +95,18 @@ export const MARIA_7800_LMC = `# RetroTINK LumaCode preset: Atari 7800 (PAL colo
 
 // Source: lumacode/TIA_2600.lmc
 export const TIA_2600_LMC_SOURCE = firmwareLmc('lumacode/TIA_2600.lmc');
-export const TIA_2600_LMC = `# RetroTINK LumaCode preset: Atari 2600
-# First line = ADC sample rate and decimation, applied when loaded.
-# anchor=7: TIA word anchor measured on the reference generator 2026-09-17 (D=4, K=4: taps 0/1 -> W2, tap 3 -> W1, tap 2 = edge);
-# the receiver-delay formula predicted 9, so the measured value ships.
-# Sample rate, decimation and word anchor measured on the c0pperdragon reference generator (RT4K Pro, 2026-09-17).
-# Each color appears twice (the index's lowest bit is unused).
+export const TIA_2600_LMC = `# RetroTINK LumaCode preset: Atari 2600 (NTSC colours)
+# PAL cartridges: use TIA_2600_PAL.lmc.
+# Each colour appears twice (the index's lowest bit is unused).
+# The header line (the first line that is neither blank nor a comment): samples per line
+# (sets the ADC sample rate) and samples per symbol (decimation), then:
+# syncw / wofs: this system's sync width and word start (relative to the sync), from c0pperdragon's LumaCode
+# reference generator. The RetroTINK uses them to align the words automatically each time it locks.
+# anchor=: the fallback if that measurement fails. Older firmware ignores syncw / wofs.
+# If the colours look scrambled, change Word Trim (Sample Rate Detection menu, LumaCode section);
+# each step shifts the word alignment by one symbol.
 
-3648 4 anchor=7
+3648 4 anchor=7 syncw=224 wofs=-2
 
 000000,000000,404040,404040,6C6C6C,6C6C6C,909090,909090,B0B0B0,B0B0B0,C8C8C8,C8C8C8,DCDCDC,DCDCDC,ECECEC,ECECEC
 444400,444400,646410,646410,848424,848424,A0A034,A0A034,B8B840,B8B840,D0D050,D0D050,E8E85C,E8E85C,FCFC68,FCFC68
